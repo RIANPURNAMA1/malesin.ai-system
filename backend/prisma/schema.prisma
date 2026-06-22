@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  email       String   @unique
+  phone       String?
+  website     String?
+  logoUrl     String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users         User[]
+  channels      Channel[]
+  contacts      Contact[]
+  conversations Conversation[]
+  labels        Label[]
+  auditLogs     AuditLog[]
+
+  @@index([slug])
+  @@map("companies")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  companyId    String
+  name         String
+  email        String
+  password     String
+  role         UserRole @default(AGENT)
+  avatar       String?
+  isActive     Boolean  @default(true)
+  refreshToken String?  @db.Text
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignments   Assignment[]
+  sentMessages  Message[]      @relation("SentMessages")
+  auditLogs     AuditLog[]
+
+  @@unique([companyId, email])
+  @@index([companyId])
+  @@index([email])
+  @@map("users")
+}
+
+model Channel {
+  id            String      @id @default(uuid())
+  companyId     String
+  type          ChannelType
+  name          String
+  isActive      Boolean     @default(true)
+  wabaId        String?
+  phoneNumberId String?
+  accessToken   String?     @db.Text
+  verifyToken   String?
+  webhookUrl    String?
+  metadata      Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([companyId])
+  @@index([type])
+  @@map("channels")
+}
+
+model Contact {
+  id               String   @id @default(uuid())
+  companyId        String
+  name             String
+  phone            String?
+  email            String?
+  avatar           String?
+  sourceChannel    String?
+  firstContactDate DateTime @default(now())
+  totalMessages    Int      @default(0)
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@unique([companyId, phone])
+  @@index([companyId])
+  @@index([phone])
+  @@map("contacts")
+}
+
+model Conversation {
+  id          String             @id @default(uuid())
+  companyId   String
+  channelId   String
+  contactId   String
+  status      ConversationStatus @default(OPEN)
+  isRead      Boolean            @default(false)
+  lastMessage String?            @db.Text
+  lastMessageAt DateTime?
+  metadata    Json?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  company     Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  channel     Channel              @relation(fields: [channelId], references: [id])
+  contact     Contact              @relation(fields: [contactId], references: [id])
+  messages    Message[]
+  labels      ConversationLabel[]
+  assignments Assignment[]
+
+  @@index([companyId])
+  @@index([channelId])
+  @@index([contactId])
+  @@index([status])
+  @@index([lastMessageAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String
+  senderId       String?
+  direction      Direction
+  type           MessageType @default(TEXT)
+  content        String?     @db.Text
+  mediaUrl       String?
+  mediaType      String?
+  fileName       String?
+  fileSize       Int?
+  wamid          String?     @unique
+  status         MessageStatus @default(SENT)
+  isRead         Boolean     @default(false)
+  reactionEmoji  String?
+  metadata       Json?
+  sentAt         DateTime    @default(now())
+  deliveredAt    DateTime?
+  readAt         DateTime?
+
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User?         @relation("SentMessages", fields: [senderId], references: [id])
+  attachments  Attachment[]
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([wamid])
+  @@index([sentAt])
+  @@map("messages")
+}
+
+model Label {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  color     String   @default("#6366f1")
+  createdAt DateTime @default(now())
+
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  conversations ConversationLabel[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("labels")
+}
+
+model ConversationLabel {
+  conversationId String
+  labelId        String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  label        Label        @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, labelId])
+  @@map("conversation_labels")
+}
+
+model Assignment {
+  id             String   @id @default(uuid())
+  conversationId String
+  userId         String
+  assignedAt     DateTime @default(now())
+  unassignedAt   DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@index([conversationId])
+  @@index([userId])
+  @@map("assignments")
+}
+
+model Attachment {
+  id        String   @id @default(uuid())
+  messageId String
+  url       String
+  type      String
+  name      String?
+  size      Int?
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@map("attachments")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  oldData   Json?
+  newData   Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@index([companyId])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  AGENT
+}
+
+enum ChannelType {
+  WHATSAPP
+  INSTAGRAM
+  FACEBOOK
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+enum Direction {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  REACTION
+  TEMPLATE
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}

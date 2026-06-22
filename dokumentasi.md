@@ -1,0 +1,8 @@
+TOKEN_META=EAAVlMgq0Ac8BRqfiSQsosmZAsuZBPbZBKBZCJ8bjJqLxf33NWOBwrIYhWiWyqPEnFz1kMvZAQ4lhNGRqogCfCVur7xCVq3Bmqky9Qxm7hL4kZCXbGdFKK1pc9is5jUSfASky3Ylihrr8mxJPQfV0yjQnRrQ39rsBAaNNQRDZAfulwPBjCEQcP2ScgqukUvgHkhyDQZDZD
+
+ID Akun WhatsApp Business: 1966039760642881
+Berlangganan webhooks
+
++62 856-2425-1657
+Terdaftar
+ID Nomor Telepon: 1026611467194694
