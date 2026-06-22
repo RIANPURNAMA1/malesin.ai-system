@@ -9,8 +9,10 @@ import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 
 import routes from './routes';
+import { TikTokAuthController } from './modules/social-auth/tiktok-auth.controller';
 import { errorHandler, notFound } from './middlewares/error.middleware';
 import { initSocket } from './sockets/socket.server';
+import { startScheduleChecker } from './queues/schedule.queue';
 import logger from './utils/logger';
 
 const app = express();
@@ -38,6 +40,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(morgan('dev', { stream: { write: (msg) => logger.info(msg.trim()) } }));
 
+// TikTok OAuth callback (via ngrok — renders profile page)
+const tiktokCtrl = new TikTokAuthController();
+app.get('/auth/tiktok/callback', tiktokCtrl.callbackGet.bind(tiktokCtrl));
+
 // Routes
 app.use('/api', routes);
 
@@ -51,6 +57,7 @@ initSocket(server);
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  startScheduleChecker();
 });
 
 // Graceful shutdown

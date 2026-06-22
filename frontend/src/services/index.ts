@@ -1,5 +1,5 @@
 import api from './api';
-import { Message, Channel, Contact, Label, AnalyticsOverview, PaginatedResponse, ApiResponse } from '../types';
+import { Post, Message, Channel, Contact, Label, AnalyticsOverview, PaginatedResponse, ApiResponse } from '../types';
 
 export const messageService = {
   list: (conversationId: string, page = 1, limit = 50) =>
@@ -39,6 +39,18 @@ export const userService = {
   create: (payload: unknown) => api.post('/users', payload).then(r => r.data.data),
   update: (id: string, payload: unknown) => api.put(`/users/${id}`, payload).then(r => r.data.data),
   delete: (id: string) => api.delete(`/users/${id}`),
+};
+
+export const postService = {
+  list: (params: { platform?: string; status?: string; page?: number; limit?: number } = {}) =>
+    api.get<ApiResponse<{ posts: Post[]; total: number; page: number; limit: number }>>('/posts', { params }).then(r => r.data.data),
+  get: (id: string) => api.get<ApiResponse<Post>>(`/posts/${id}`).then(r => r.data.data),
+  create: (payload: { platform?: string; caption?: string; mediaUrls?: string[]; scheduledAt?: string; status?: string; channelId?: string }) =>
+    api.post<ApiResponse<Post>>('/posts', payload).then(r => r.data.data),
+  update: (id: string, payload: Partial<Post>) =>
+    api.put<ApiResponse<Post>>(`/posts/${id}`, payload).then(r => r.data.data),
+  delete: (id: string) => api.delete(`/posts/${id}`),
+  publishNow: (id: string) => api.post<ApiResponse<{ id: string; permalink: string }>>(`/posts/${id}/publish`).then(r => r.data.data),
 };
 
 export const analyticsService = {

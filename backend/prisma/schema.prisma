@@ -25,6 +25,7 @@ model Company {
   conversations Conversation[]
   labels        Label[]
   auditLogs     AuditLog[]
+  posts         Post[]
 
   @@index([slug])
   @@map("companies")
@@ -72,6 +73,7 @@ model Channel {
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   conversations Conversation[]
+  posts         Post[]
 
   @@index([companyId])
   @@index([type])
@@ -217,6 +219,44 @@ model Attachment {
   @@map("attachments")
 }
 
+model Post {
+  id           String       @id @default(uuid())
+  companyId    String
+  channelId    String?
+  platform     PostPlatform @default(INSTAGRAM)
+  mediaUrls    Json?
+  caption      String?      @db.Text
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  status       PostStatus   @default(DRAFT)
+  igContainerId String?
+  igMediaId    String?
+  permalink    String?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  company Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  channel Channel? @relation(fields: [channelId], references: [id])
+
+  @@index([companyId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("posts")
+}
+
+enum PostPlatform {
+  INSTAGRAM
+  TIKTOK
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
 model AuditLog {
   id        String   @id @default(uuid())
   companyId String
@@ -250,6 +290,7 @@ enum ChannelType {
   WHATSAPP
   INSTAGRAM
   FACEBOOK
+  TIKTOK
 }
 
 enum ConversationStatus {

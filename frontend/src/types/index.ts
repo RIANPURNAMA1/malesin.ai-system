@@ -1,5 +1,5 @@
 export type UserRole = 'OWNER' | 'ADMIN' | 'AGENT';
-export type ChannelType = 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK';
+export type ChannelType = 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK';
 export type ConversationStatus = 'OPEN' | 'PENDING' | 'CLOSED';
 export type MessageType = 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'REACTION' | 'TEMPLATE';
 export type MessageStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
@@ -38,6 +38,7 @@ export interface Channel {
   wabaId?: string;
   phoneNumberId?: string;
   verifyToken?: string;
+  metadata?: Record<string, any>;
   createdAt: string;
   _count?: { conversations: number };
 }
@@ -137,6 +138,25 @@ export interface AnalyticsOverview {
   closed: number;
   pending: number;
   today: number;
+}
+
+export type PostPlatform = 'INSTAGRAM' | 'TIKTOK';
+export type PostStatus = 'DRAFT' | 'SCHEDULED' | 'PUBLISHING' | 'PUBLISHED' | 'FAILED';
+
+export interface Post {
+  id: string;
+  companyId: string;
+  channelId?: string;
+  platform: PostPlatform;
+  mediaUrls: string[];
+  caption?: string;
+  scheduledAt?: string;
+  publishedAt?: string;
+  status: PostStatus;
+  igContainerId?: string;
+  igMediaId?: string;
+  permalink?: string;
+  createdAt: string;
 }
 
 export interface Notification {

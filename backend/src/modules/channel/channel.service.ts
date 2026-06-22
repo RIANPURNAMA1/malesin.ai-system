@@ -1,14 +1,16 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import { encrypt, decrypt } from '../../utils/encryption';
 import { createError } from '../../middlewares/error.middleware';
 
 export interface CreateChannelDto {
   name: string;
-  type: 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK';
+  type: 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK';
   wabaId?: string;
   phoneNumberId?: string;
   accessToken?: string;
   verifyToken?: string;
+  metadata?: Prisma.InputJsonValue;
 }
 
 export class ChannelService {
@@ -23,6 +25,7 @@ export class ChannelService {
         phoneNumberId: dto.phoneNumberId,
         accessToken: encryptedToken,
         verifyToken: dto.verifyToken,
+        metadata: dto.metadata ?? undefined,
       },
     });
   }
@@ -33,7 +36,7 @@ export class ChannelService {
       select: {
         id: true, name: true, type: true, isActive: true,
         wabaId: true, phoneNumberId: true, verifyToken: true,
-        createdAt: true, updatedAt: true,
+        metadata: true, createdAt: true, updatedAt: true,
         _count: { select: { conversations: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -58,11 +61,13 @@ export class ChannelService {
   async update(companyId: string, channelId: string, dto: Partial<CreateChannelDto>) {
     await this.findById(companyId, channelId);
     const encryptedToken = dto.accessToken ? encrypt(dto.accessToken) : undefined;
+    const { metadata, ...rest } = dto;
     return prisma.channel.update({
       where: { id: channelId },
       data: {
-        ...dto,
+        ...rest,
         accessToken: encryptedToken,
+        ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {}),
       },
     });
   }

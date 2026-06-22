@@ -9,6 +9,7 @@ import InboxPage from '../pages/InboxPage';
 import DashboardPage from '../pages/DashboardPage';
 import ContactsPage from '../pages/ContactsPage';
 import ChannelsPage from '../pages/ChannelsPage';
+import TikTokDashboardPage from '../pages/TikTokDashboardPage';
 import SettingsPage from '../pages/SettingsPage';
 import AIAgentsPage from '../pages/AIAgentsPage';
 import AutomationPage from '../pages/AutomationPage';
@@ -22,6 +23,7 @@ import BroadcastsPage from '../pages/BroadcastsPage';
 import SchedulePage from '../pages/SchedulePage';
 import FlowPage from '../pages/FlowPage';
 import LegalPage from '../pages/LegalPage';
+import TikTokCallbackPage from '../pages/TikTokCallbackPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore();
@@ -48,6 +50,7 @@ export default function AppRouter() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/channels" element={<ChannelsPage />} />
+        <Route path="/channels/tiktok/:id" element={<TikTokDashboardPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/ai-agents" element={<AIAgentsPage />} />
         <Route path="/automation" element={<AutomationPage />} />
@@ -63,6 +66,7 @@ export default function AppRouter() {
       </Route>
       <Route path="/privacy" element={<LegalPage />} />
       <Route path="/terms" element={<LegalPage />} />
+      <Route path="/auth/tiktok/callback" element={<TikTokCallbackPage />} />
       <Route path="/" element={<Navigate to="/inbox" replace />} />
       <Route path="*" element={<Navigate to="/inbox" replace />} />
     </Routes>

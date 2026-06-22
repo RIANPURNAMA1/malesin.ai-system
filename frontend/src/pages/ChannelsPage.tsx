@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { channelService } from '../services/index';
 import { Channel } from '../types';
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import WhatsAppConnectModal from '../components/WhatsAppConnectModal';
+import TikTokConnectModal from '../components/TikTokConnectModal';
 
 function WhatsAppIcon({ size }: { size?: string }) {
   return (
@@ -128,8 +130,10 @@ const availableIntegrations = [
 ];
 
 export default function ChannelsPage() {
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [showTikTokModal, setShowTikTokModal] = useState(false);
   const { data: channels, isLoading } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
   const qc = useQueryClient();
 
@@ -195,12 +199,24 @@ export default function ChannelsPage() {
                       <span className={`status-dot ${ch.isActive ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
                     </div>
 
-                    {ch.wabaId && (
+                    {ch.type === 'TIKTOK' && ch.metadata ? (
+                      <div className="flex items-center gap-3 text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">
+                        {ch.metadata.avatar_url && (
+                          <img src={ch.metadata.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-700 truncate">@{ch.name}</p>
+                          <p className="text-gray-400">
+                            {ch.metadata.follower_count?.toLocaleString() || 0} followers
+                          </p>
+                        </div>
+                      </div>
+                    ) : ch.wabaId ? (
                       <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">
                         <Smartphone className="w-3.5 h-3.5" />
                         <span className="truncate">{ch.phoneNumberId || ch.wabaId}</span>
                       </div>
-                    )}
+                    ) : null}
 
                     <div className="flex items-center justify-between text-xs text-gray-400 mb-4">
                       <span className="flex items-center gap-1">
@@ -213,7 +229,14 @@ export default function ChannelsPage() {
                     </div>
 
                     <div className="flex gap-2 pt-3 border-t border-gray-100">
-                      <button className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all">
+                      <button
+                        onClick={() => {
+                          if (ch.type === 'TIKTOK') {
+                            navigate(`/channels/tiktok/${ch.id}`);
+                          }
+                        }}
+                        className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all"
+                      >
                         <SettingsIcon className="w-4 h-4 inline mr-1.5" />
                         Manage
                       </button>
@@ -245,6 +268,7 @@ export default function ChannelsPage() {
                   onClick={() => {
                     if (alreadyConnected) return;
                     if (p.id === 'WHATSAPP') setShowWhatsAppModal(true);
+                    else if (p.id === 'TIKTOK') setShowTikTokModal(true);
                     else setShowModal(true);
                   }}
                 >
@@ -276,6 +300,7 @@ export default function ChannelsPage() {
 
       {showModal && <ConnectionModal onClose={() => setShowModal(false)} />}
       {showWhatsAppModal && <WhatsAppConnectModal onClose={() => setShowWhatsAppModal(false)} />}
+      {showTikTokModal && <TikTokConnectModal onClose={() => setShowTikTokModal(false)} />}
     </div>
   );
 }
