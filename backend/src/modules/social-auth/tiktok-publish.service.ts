@@ -119,10 +119,12 @@ export class TikTokPublishService {
 
     const initData = await this.initUpload(token, fileBuffer.length);
 
+    const fileSize = fileBuffer.length;
     await axios.put(initData.upload_url, fileBuffer, {
       headers: {
         'Content-Type': mimeType,
-        'Content-Length': fileBuffer.length.toString(),
+        'Content-Length': fileSize.toString(),
+        'Content-Range': `bytes 0-${fileSize - 1}/${fileSize}`,
       },
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
@@ -173,11 +175,13 @@ export class TikTokPublishService {
     }
 
     const initData = await this.initUpload(token, fileBuffer.length);
+    const pFileSize = fileBuffer.length;
 
     await axios.put(initData.upload_url, fileBuffer, {
       headers: {
         'Content-Type': mimeType,
-        'Content-Length': fileBuffer.length.toString(),
+        'Content-Length': pFileSize.toString(),
+        'Content-Range': `bytes 0-${pFileSize - 1}/${pFileSize}`,
       },
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
