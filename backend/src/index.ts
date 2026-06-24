@@ -16,6 +16,7 @@ import { startScheduleChecker } from './queues/schedule.queue';
 import logger from './utils/logger';
 
 const app = express();
+app.set('trust proxy', 1);
 const server = http.createServer(app);
 
 // Security
