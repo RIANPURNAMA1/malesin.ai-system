@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { XCircle, Loader2, CheckCircle2, Music } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import TikTokIcon from './TikTokIcon';
+import api from '../services/api';
 import toast from 'react-hot-toast';
 
 interface Props {
@@ -36,8 +37,8 @@ export default function TikTokConnectModal({ onClose }: Props) {
     setConnecting(true);
     const companyId = user?.companyId || '';
     try {
-      const resp = await fetch(`/api/social-auth/tiktok/oauth-url?companyId=${encodeURIComponent(companyId)}`);
-      const data = await resp.json();
+      const resp = await api.get(`/social-auth/tiktok/oauth-url`, { params: { companyId } });
+      const data = resp.data;
       if (!data.success || !data.url) {
         throw new Error(data.error || 'Failed to get OAuth URL');
       }
