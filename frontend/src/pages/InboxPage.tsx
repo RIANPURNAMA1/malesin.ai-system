@@ -36,7 +36,7 @@ export default function InboxPage() {
         <div className="flex-1 flex flex-col items-center justify-center bg-white px-6">
           <div className="max-w-lg w-full">
             <h1 className="text-2xl font-semibold text-gray-800 mb-8 text-center">
-              Welcome back to <span style={{ color: '#18a6fc' }}>Malesan.AI</span>!
+              Welcome back to <span style={{ color: '#18a6fc' }}>malesin.AI</span>!
             </h1>
 
             <div className="space-y-3">

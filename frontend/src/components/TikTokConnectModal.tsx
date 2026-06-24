@@ -72,7 +72,6 @@ export default function TikTokConnectModal({ onClose }: Props) {
       <div className="glass-modal w-full max-w-lg max-h-[90vh] overflow-y-auto scrollbar-thin relative animate-slide-up bg-white" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <TikTokIcon size="22" />
             <h3 className="text-lg font-semibold text-gray-900">TikTok</h3>
           </div>
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
@@ -151,7 +150,7 @@ export default function TikTokConnectModal({ onClose }: Props) {
                 {connecting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <TikTokIcon size="20" />
+                  <img src="/logotk.png" alt="" className="w-7 h-7 object-contain" />
                 )}
                 {connecting ? 'Opening TikTok...' : 'Connect with TikTok'}
               </button>

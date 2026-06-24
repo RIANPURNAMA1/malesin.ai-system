@@ -5,7 +5,7 @@ import prisma from './config/database';
 async function seed() {
   const email = process.env.ADMIN_EMAIL || 'admin@malesin.ai';
   const password = process.env.ADMIN_PASSWORD || 'admin123';
-  const companyName = process.env.COMPANY_NAME || 'Malesin.AI';
+  const companyName = process.env.COMPANY_NAME || 'malesin.AI';
 
   let company = await prisma.company.findFirst({ where: { slug: companyName.toLowerCase().replace(/\s+/g, '-') } });
   if (!company) {

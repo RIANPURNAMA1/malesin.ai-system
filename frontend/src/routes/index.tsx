@@ -24,6 +24,7 @@ import SchedulePage from '../pages/SchedulePage';
 import FlowPage from '../pages/FlowPage';
 import LegalPage from '../pages/LegalPage';
 import TikTokCallbackPage from '../pages/TikTokCallbackPage';
+import LandingPage from '../pages/LandingPage';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore();
@@ -40,8 +41,8 @@ function RequireGuest({ children }: { children: React.ReactNode }) {
 export default function AppRouter() {
   return (
     <Routes>
+      <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />
       <Route element={<RequireGuest><AuthLayout /></RequireGuest>}>
-        <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
       </Route>
       <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
@@ -67,7 +68,7 @@ export default function AppRouter() {
       <Route path="/privacy" element={<LegalPage />} />
       <Route path="/terms" element={<LegalPage />} />
       <Route path="/auth/tiktok/callback" element={<TikTokCallbackPage />} />
-      <Route path="/" element={<Navigate to="/inbox" replace />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="*" element={<Navigate to="/inbox" replace />} />
     </Routes>
   );
