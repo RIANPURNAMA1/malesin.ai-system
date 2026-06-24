@@ -9,6 +9,9 @@ import toast from 'react-hot-toast';
 
 const tabs = ['Instagram', 'TikTok'];
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || '';
+const mediaUrl = (url: string) => url.startsWith('/') ? `${API_BASE}${url}` : url;
+
 const statusStyles: Record<string, string> = {
   DRAFT: 'bg-gray-100 text-gray-500',
   SCHEDULED: 'bg-primary/10 text-primary',
@@ -103,13 +106,13 @@ export default function SchedulePage() {
                         {post.mediaUrls?.[0] ? (
                           post.mediaUrls[0].match(/\.(mp4|mov|avi)$/i) ? (
                             <div className="relative w-full h-full">
-                              <video src={post.mediaUrls[0]} className="w-full h-full object-cover" muted />
+                              <video src={mediaUrl(post.mediaUrls[0])} className="w-full h-full object-cover" muted />
                               <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
                                 <Play className="w-5 h-5 text-white" />
                               </div>
                             </div>
                           ) : (
-                            <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" />
+                            <img src={mediaUrl(post.mediaUrls[0])} alt="" className="w-full h-full object-cover" />
                           )
                         ) : (
                           <Image className="w-5 h-5 text-gray-300" />
