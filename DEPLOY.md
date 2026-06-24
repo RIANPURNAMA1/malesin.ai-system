@@ -72,7 +72,7 @@ nano .env
 NODE_ENV=production
 PORT=5000
 
-DATABASE_URL="mysql://user:password@localhost:3306/omnichannel"
+DATABASE_URL="mysql://malesin-ai_user:PasswordKuat123!@localhost:3306/malesin-ai"
 
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -101,9 +101,9 @@ WHATSAPP_BASE_URL=https://graph.facebook.com
 sudo mysql -u root
 
 # Buat database & user
-CREATE DATABASE omnichannel;
-CREATE USER 'omni_user'@'localhost' IDENTIFIED BY 'strong-password';
-GRANT ALL PRIVILEGES ON omnichannel.* TO 'omni_user'@'localhost';
+CREATE DATABASE `malesin-ai`;
+CREATE USER 'malesin-ai_user'@'localhost' IDENTIFIED BY 'PasswordKuat123!';
+GRANT ALL PRIVILEGES ON `malesin-ai`.* TO 'malesin-ai_user'@'localhost';
 FLUSH PRIVILEGES;
 EXIT;
 
@@ -141,7 +141,7 @@ pm2 start --interpreter tsx src/index.ts --name malesin-backend
 
 ### 2.5. Konfigurasi Nginx Backend
 
-Buat file `/etc/nginx/sites-available/api.malesinai.mendunia.id`:
+Buat file `nano /etc/nginx/sites-available/api.malesinai.mendunia.id`:
 
 ```nginx
 server {
@@ -205,27 +205,15 @@ server {
 ```bash
 cd /var/www/malesin.ai-system/frontend
 
+# Copy env & set API URL untuk production
+cp .env.example .env
+echo "VITE_API_URL=https://api.malesinai.mendunia.id/api" > .env
+
 # Install dependencies
 npm install
 
-# Update src/services/api.ts — ubah baseURL
-# Dari: http://localhost:5000/api
-# Jadi: https://api.malesinai.mendunia.id/api
-
-# Build
+# Build (VITE_API_URL akan otomatis dipakai)
 npm run build
-```
-
-### 3.2. Update API Service
-
-Edit `src/services/api.ts`:
-
-```typescript
-// Cari baseURL atau axios.create, ubah jadi:
-const api = axios.create({
-  baseURL: 'https://api.malesinai.mendunia.id/api',
-  // ...
-});
 ```
 
 ### 3.3. Konfigurasi Nginx Frontend
