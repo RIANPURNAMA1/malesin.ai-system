@@ -3,8 +3,10 @@ import redis, { redisAvailable } from '../config/redis';
 import logger from '../utils/logger';
 import prisma from '../config/database';
 import { InstagramPublishService } from '../modules/publish/instagram-publish.service';
+import { TikTokPublishService } from '../modules/social-auth/tiktok-publish.service';
 
 const igPublish = new InstagramPublishService();
+const tiktokPublish = new TikTokPublishService();
 
 export const scheduleQueue = redisAvailable
   ? new Queue('schedules', { connection: redis })
@@ -12,12 +14,17 @@ export const scheduleQueue = redisAvailable
 
 export const scheduleWorker = redisAvailable
   ? new Worker('schedules', async (job) => {
-      const { postId, companyId } = job.data;
-      logger.info(`Publishing scheduled post ${postId}`);
+      const { postId, companyId, platform } = job.data;
+      logger.info(`Publishing scheduled ${platform} post ${postId}`);
 
       try {
-        const result = await igPublish.publishPost(companyId, postId);
-        logger.info(`Post ${postId} published: ${result.id}`);
+        let result;
+        if (platform === 'TIKTOK') {
+          result = await tiktokPublish.publishPost(companyId, postId);
+        } else {
+          result = await igPublish.publishPost(companyId, postId);
+        }
+        logger.info(`Post ${postId} published: ${result.publish_id || result.id}`);
         return result;
       } catch (err: any) {
         await prisma.post.update({
@@ -60,11 +67,12 @@ export async function checkScheduledPosts() {
     await scheduleQueue.add('publish', {
       postId: post.id,
       companyId: post.companyId,
+      platform: post.platform,
     }, {
       attempts: 3,
       backoff: { type: 'exponential', delay: 5000 },
     });
-    logger.info(`Queued post ${post.id} for publishing`);
+    logger.info(`Queued ${post.platform} post ${post.id} for publishing`);
   }
 }
 

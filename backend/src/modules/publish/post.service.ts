@@ -1,8 +1,10 @@
 import prisma from '../../config/database';
 import { createError } from '../../middlewares/error.middleware';
 import { InstagramPublishService } from './instagram-publish.service';
+import { TikTokPublishService } from '../social-auth/tiktok-publish.service';
 
 const igPublish = new InstagramPublishService();
+const tiktokPublish = new TikTokPublishService();
 
 export class PostService {
   async findAll(companyId: string, query: { platform?: string; status?: string; page?: number; limit?: number }) {
@@ -71,6 +73,12 @@ export class PostService {
   }
 
   async publishNow(companyId: string, id: string) {
+    const post = await this.findById(companyId, id);
+
+    if (post.platform === 'TIKTOK') {
+      return tiktokPublish.publishPost(companyId, id);
+    }
+
     return igPublish.publishPost(companyId, id);
   }
 }

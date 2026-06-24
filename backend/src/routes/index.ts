@@ -10,6 +10,7 @@ import userRoutes from '../modules/company/user.routes';
 import postRoutes from '../modules/publish/post.routes';
 import socialAuthRoutes from '../modules/social-auth/social-auth.routes';
 import tiktokAuthRoutes from '../modules/social-auth/tiktok-auth.routes';
+import tiktokPublishRoutes from '../modules/social-auth/tiktok-publish.routes';
 import { handleWebhookGet, handleWebhookPost } from '../modules/webhook/webhook.handler';
 import { handleInstagramWebhookGet, handleInstagramWebhookPost } from '../modules/webhook/instagram.handler';
 
@@ -28,6 +29,7 @@ router.use('/users', userRoutes);
 router.use('/posts', postRoutes);
 router.use('/social-auth', socialAuthRoutes);
 router.use('/social-auth', tiktokAuthRoutes);
+router.use('/social-auth', tiktokPublishRoutes);
 
 // WhatsApp Webhook
 router.get('/webhook', handleWebhookGet);
