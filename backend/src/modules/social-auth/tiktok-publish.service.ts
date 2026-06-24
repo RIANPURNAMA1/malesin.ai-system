@@ -62,7 +62,7 @@ export class TikTokPublishService {
       }
     );
 
-    if (res.data.error) {
+    if (res.data.error && res.data.error.code !== 'ok') {
       throw createError(`TikTok init upload error: ${res.data.error.message || res.data.error.code}`, 400);
     }
 
@@ -100,7 +100,7 @@ export class TikTokPublishService {
       }
     );
 
-    if (res.data.error) {
+    if (res.data.error && res.data.error.code !== 'ok') {
       throw createError(`TikTok publish error: ${res.data.error.message || res.data.error.code}`, 400);
     }
 
