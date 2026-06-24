@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { postService } from '../services/index';
 import { Post } from '../types';
-import { Calendar, Clock, Image, Instagram, X, Plus, Send, Edit2, Trash2, MoreHorizontal, Loader2, CheckCircle2, AlertCircle, ArrowLeft, MapPin, UserPlus, ChevronRight, Globe } from 'lucide-react';
+import { Calendar, Clock, Image, Instagram, X, Plus, Send, Edit2, Trash2, MoreHorizontal, Loader2, CheckCircle2, AlertCircle, ArrowLeft, MapPin, UserPlus, ChevronRight, Globe, Play } from 'lucide-react';
 import TikTokIcon from '../components/TikTokIcon';
 import TikTokPostModal from '../components/TikTokPostModal';
 import toast from 'react-hot-toast';
@@ -101,7 +101,16 @@ export default function SchedulePage() {
                     <td className="py-3.5 px-3">
                       <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
                         {post.mediaUrls?.[0] ? (
-                          <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" />
+                          post.mediaUrls[0].match(/\.(mp4|mov|avi)$/i) ? (
+                            <div className="relative w-full h-full">
+                              <video src={post.mediaUrls[0]} className="w-full h-full object-cover" muted />
+                              <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                <Play className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                          ) : (
+                            <img src={post.mediaUrls[0]} alt="" className="w-full h-full object-cover" />
+                          )
                         ) : (
                           <Image className="w-5 h-5 text-gray-300" />
                         )}

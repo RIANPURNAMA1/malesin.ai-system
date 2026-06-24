@@ -67,7 +67,7 @@ export class TikTokPublishController {
         caption
       );
 
-      fs.unlinkSync(file.path);
+      const mediaUrl = `/uploads/tiktok/${file.filename}`;
 
       const post = await prisma.post.create({
         data: {
@@ -75,7 +75,7 @@ export class TikTokPublishController {
           channelId: targetChannelId,
           platform: 'TIKTOK',
           caption,
-          mediaUrls: [file.originalname],
+          mediaUrls: [mediaUrl],
           status: 'PUBLISHED',
           publishedAt: new Date(),
         },
@@ -126,13 +126,15 @@ export class TikTokPublishController {
         where: { companyId, type: 'TIKTOK', isActive: true },
       });
 
+      const mediaUrl = `/uploads/tiktok/${file.filename}`;
+
       const post = await prisma.post.create({
         data: {
           companyId,
           channelId: channel?.id || null,
           platform: 'TIKTOK',
           caption,
-          mediaUrls: [file.path],
+          mediaUrls: [mediaUrl],
           status: 'DRAFT',
         },
       });
