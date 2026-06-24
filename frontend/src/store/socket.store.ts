@@ -21,8 +21,9 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     const existing = get().socket;
     if (existing?.connected) return;
 
-    const apiUrl = import.meta.env.VITE_API_URL || '';
-    const socketUrl = apiUrl.replace(/\/api\/?$/, '') || '/';
+    const apiUrl = import.meta.env.VITE_API_URL;
+    const isRelative = !apiUrl || apiUrl.startsWith('/');
+    const socketUrl = isRelative ? 'http://localhost:5000' : apiUrl.replace(/\/api\/?$/, '');
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],

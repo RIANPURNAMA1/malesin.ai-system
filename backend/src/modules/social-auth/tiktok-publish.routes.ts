@@ -8,6 +8,7 @@ const ctrl = new TikTokPublishController();
 router.use(authenticate);
 router.get('/tiktok/channel', ctrl.getChannelInfo.bind(ctrl));
 router.post('/tiktok/upload', uploadMiddleware, ctrl.uploadAndPost.bind(ctrl));
+router.post('/tiktok/upload-draft', uploadMiddleware, ctrl.uploadDraft.bind(ctrl));
 router.post('/tiktok/publish/:postId', ctrl.publishPost.bind(ctrl));
 
 export default router;

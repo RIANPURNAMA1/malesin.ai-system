@@ -68,18 +68,24 @@ export default function TikTokPostModal({ onClose }: { onClose: () => void }) {
   });
 
   const createDraftMutation = useMutation({
-    mutationFn: () => postService.create({
-      platform: 'TIKTOK',
-      caption,
-      mediaUrls: selectedFile ? [selectedFile.name] : [],
-      status: 'DRAFT',
-    }),
+    mutationFn: async () => {
+      if (!selectedFile) throw new Error('Select a video first');
+
+      const formData = new FormData();
+      formData.append('video', selectedFile);
+      formData.append('caption', caption);
+
+      const uploadRes = await api.post('/social-auth/tiktok/upload-draft', formData);
+      return uploadRes.data.data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['posts'] });
       toast.success('Draft saved!');
       onClose();
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to save draft'),
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to save draft');
+    },
   });
 
   return (

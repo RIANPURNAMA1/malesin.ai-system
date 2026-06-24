@@ -114,6 +114,38 @@ export class TikTokPublishController {
     }
   }
 
+  async uploadDraft(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const companyId = req.user!.companyId;
+      const file = req.file;
+      if (!file) throw createError('No video file uploaded', 400);
+
+      const caption = req.body.caption || '';
+
+      const channel = await prisma.channel.findFirst({
+        where: { companyId, type: 'TIKTOK', isActive: true },
+      });
+
+      const post = await prisma.post.create({
+        data: {
+          companyId,
+          channelId: channel?.id || null,
+          platform: 'TIKTOK',
+          caption,
+          mediaUrls: [file.path],
+          status: 'DRAFT',
+        },
+      });
+
+      success(res, post, 'Draft saved');
+    } catch (err) {
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      next(err);
+    }
+  }
+
   async publishPost(req: AuthRequest, res: Response, next: NextFunction) {
     try {
       const companyId = req.user!.companyId;

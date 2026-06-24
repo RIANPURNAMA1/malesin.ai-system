@@ -178,7 +178,6 @@ export class TikTokPublishService {
       maxBodyLength: Infinity,
     });
 
-    const isScheduled = post.status === 'SCHEDULED';
     const postMode = 'push_to_user';
 
     await this.publishVideo(token, initData.publish_id, postMode);
