@@ -45,12 +45,19 @@ export class TikTokPublishService {
 
   async initUpload(accessToken: string, fileSize: number) {
     const res = await axios.post<InitUploadResponse>(
-      'https://open.tiktokapis.com/v2/video/init_upload/',
-      { source: 'push_by_file', size: fileSize },
+      'https://open.tiktokapis.com/v2/post/publish/inbox/video/init/',
+      {
+        source_info: {
+          source: 'FILE_UPLOAD',
+          video_size: fileSize,
+          chunk_size: fileSize,
+          total_chunk_count: 1,
+        },
+      },
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=UTF-8',
         },
       }
     );
@@ -121,13 +128,11 @@ export class TikTokPublishService {
       maxBodyLength: Infinity,
     });
 
-    const publishData = await this.publishVideo(token, initData.publish_id, 'push_to_user');
-
     logger.info(`[TikTokPublish] Draft posted, publish_id=${initData.publish_id}`);
 
     return {
       publish_id: initData.publish_id,
-      status: publishData.status,
+      status: 'SENT',
     };
   }
 
@@ -177,10 +182,6 @@ export class TikTokPublishService {
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
     });
-
-    const postMode = 'push_to_user';
-
-    await this.publishVideo(token, initData.publish_id, postMode);
 
     await prisma.post.update({
       where: { id: post.id },
