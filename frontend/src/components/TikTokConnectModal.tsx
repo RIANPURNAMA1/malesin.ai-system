@@ -150,7 +150,7 @@ export default function TikTokConnectModal({ onClose }: Props) {
                 {connecting ? (
                   <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
-                  <img src="/logotk.png" alt="" className="w-7 h-7 object-contain" />
+                  <TikTokIcon size="24" />
                 )}
                 {connecting ? 'Opening TikTok...' : 'Connect with TikTok'}
               </button>

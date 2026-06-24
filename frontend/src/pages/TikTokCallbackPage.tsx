@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api from '../services/api';
 
-const OPENER_ORIGIN = 'http://localhost:5173';
+const OPENER_ORIGIN = window.location.origin;
 
 export default function TikTokCallbackPage() {
   const [params] = useSearchParams();

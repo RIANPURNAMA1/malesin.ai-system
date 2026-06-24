@@ -70,7 +70,7 @@ export class TikTokAuthService {
     const params = new URLSearchParams({
       client_key: this.clientKey,
       response_type: 'code',
-      scope: 'user.info.basic,user.info.profile,user.info.stats',
+      scope: 'user.info.basic',
       redirect_uri: this.redirectUri,
       state,
       code_challenge: codeChallenge,
