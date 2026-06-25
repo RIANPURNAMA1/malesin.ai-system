@@ -47,6 +47,7 @@ cp .env.example .env
 # Edit .env with your DB/Redis credentials
 
 npx prisma migrate dev
+npx tsx src/seed-admin.ts
 npm run dev
 ```
 

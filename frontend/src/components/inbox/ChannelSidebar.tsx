@@ -1,4 +1,4 @@
-import { MessageCircle, Instagram, Facebook } from 'lucide-react';
+import { MessageCircle, Instagram, Facebook, Smartphone } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { channelService } from '../../services/index';
 import { Channel } from '../../types';
@@ -6,12 +6,14 @@ import { useInboxStore } from '../../store/inbox.store';
 
 const channelIcons: Record<string, React.ReactNode> = {
   WHATSAPP: <MessageCircle className="w-4 h-4" />,
+  WHATSAPP_UNOFFICIAL: <Smartphone className="w-4 h-4" />,
   INSTAGRAM: <Instagram className="w-4 h-4" />,
   FACEBOOK: <Facebook className="w-4 h-4" />,
 };
 
 const channelColors: Record<string, string> = {
   WHATSAPP: 'bg-green-100 text-green-700',
+  WHATSAPP_UNOFFICIAL: 'bg-green-100 text-green-700',
   INSTAGRAM: 'bg-pink-100 text-pink-700',
   FACEBOOK: 'bg-blue-100 text-blue-700',
 };

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import WhatsAppConnectModal from '../components/WhatsAppConnectModal';
+import WhatsAppUnofficialConnectModal from '../components/WhatsAppUnofficialConnectModal';
 import TikTokConnectModal from '../components/TikTokConnectModal';
 
 function WhatsAppIcon({ size }: { size?: string }) {
@@ -108,8 +109,20 @@ function GmailIcon({ size }: { size?: string }) {
 
 import TikTokIcon from '../components/TikTokIcon';
 
+function SmartphoneWA({ size }: { size?: string }) {
+  return (
+    <svg width={size || '24'} height={size || '24'} viewBox="0 0 24 24" fill="none">
+      <rect x="5" y="2" width="14" height="20" rx="3" stroke="#25D366" strokeWidth="1.5" fill="#e8f5e9"/>
+      <rect x="7" y="4" width="10" height="14" rx="1" fill="#25D366" opacity="0.1"/>
+      <circle cx="12" cy="18" r="1" fill="#25D366"/>
+      <text x="12" y="13" textAnchor="middle" fontSize="8" fill="#25D366" fontWeight="bold">WA</text>
+    </svg>
+  );
+}
+
 const platformMeta: Record<string, { icon: React.ComponentType<{ size?: string }>; color: string }> = {
   WHATSAPP: { icon: WhatsAppIcon, color: '#22C55E' },
+  WHATSAPP_UNOFFICIAL: { icon: SmartphoneWA, color: '#25D366' },
   INSTAGRAM: { icon: InstagramIcon, color: '#E4405F' },
   FACEBOOK: { icon: FacebookIcon, color: '#1877F2' },
   MESSENGER: { icon: MessengerIcon, color: '#0099FF' },
@@ -123,6 +136,7 @@ const availableIntegrations = [
   { id: 'MESSENGER', name: 'Messenger', desc: 'Connect Facebook Messenger inbox', icon: MessengerIcon, color: '#0099FF', popular: true },
   { id: 'WEBSITE', name: 'Web Live Chat', desc: 'Embed a live chat widget on your website', icon: GlobeIcon, color: '#0EA5E9', popular: true },
   { id: 'WHATSAPP', name: 'WhatsApp Business', desc: 'Send and receive messages via WhatsApp Business API', icon: WhatsAppIcon, color: '#22C55E', popular: true },
+  { id: 'WHATSAPP_UNOFFICIAL', name: 'WhatsApp Unofficial', desc: 'Connect your WhatsApp via QR code (whatsapp-web.js)', icon: SmartphoneWA, color: '#25D366', popular: true },
   { id: 'INSTAGRAM', name: 'Instagram', desc: 'Manage Instagram direct messages', icon: InstagramIcon, color: '#E4405F', popular: true },
   { id: 'GMAIL', name: 'Gmail', desc: 'Forward Gmail inquiries to your inbox', icon: GmailIcon, color: '#EA4335', popular: false },
   { id: 'EMAIL', name: 'Other Email', desc: 'Forward email inquiries via SMTP', icon: MailIcon, color: '#F59E0B', popular: false },
@@ -133,6 +147,7 @@ export default function ChannelsPage() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+  const [showWhatsAppUnofficialModal, setShowWhatsAppUnofficialModal] = useState(false);
   const [showTikTokModal, setShowTikTokModal] = useState(false);
   const { data: channels, isLoading } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
   const qc = useQueryClient();
@@ -268,6 +283,7 @@ export default function ChannelsPage() {
                   onClick={() => {
                     if (alreadyConnected) return;
                     if (p.id === 'WHATSAPP') setShowWhatsAppModal(true);
+                    else if (p.id === 'WHATSAPP_UNOFFICIAL') setShowWhatsAppUnofficialModal(true);
                     else if (p.id === 'TIKTOK') setShowTikTokModal(true);
                     else setShowModal(true);
                   }}
@@ -300,6 +316,7 @@ export default function ChannelsPage() {
 
       {showModal && <ConnectionModal onClose={() => setShowModal(false)} />}
       {showWhatsAppModal && <WhatsAppConnectModal onClose={() => setShowWhatsAppModal(false)} />}
+      {showWhatsAppUnofficialModal && <WhatsAppUnofficialConnectModal onClose={() => setShowWhatsAppUnofficialModal(false)} />}
       {showTikTokModal && <TikTokConnectModal onClose={() => setShowTikTokModal(false)} />}
     </div>
   );

@@ -1,5 +1,5 @@
 export type UserRole = 'OWNER' | 'ADMIN' | 'AGENT';
-export type ChannelType = 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK';
+export type ChannelType = 'WHATSAPP' | 'WHATSAPP_UNOFFICIAL' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK';
 export type ConversationStatus = 'OPEN' | 'PENDING' | 'CLOSED';
 export type MessageType = 'TEXT' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOCUMENT' | 'REACTION' | 'TEMPLATE';
 export type MessageStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
@@ -60,6 +60,7 @@ export interface Contact {
   sourceChannel?: string;
   firstContactDate: string;
   totalMessages: number;
+  metadata?: Record<string, any>;
   createdAt: string;
 }
 

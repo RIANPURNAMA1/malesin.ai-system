@@ -20,7 +20,7 @@ export const channelService = {
 };
 
 export const contactService = {
-  list: (params: { search?: string; page?: number; limit?: number } = {}) =>
+  list: (params: { search?: string; page?: number; limit?: number; sourceChannel?: string } = {}) =>
     api.get<PaginatedResponse<Contact>>('/contacts', { params }).then(r => r.data),
   get: (id: string) => api.get<ApiResponse<Contact>>(`/contacts/${id}`).then(r => r.data.data),
   update: (id: string, payload: Partial<Contact>) =>

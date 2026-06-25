@@ -1,5 +1,6 @@
 import prisma from '../../config/database';
 import { WhatsAppService } from '../channel/whatsapp.service';
+import { whatsAppUnofficialService } from '../channel/whatsapp-unofficial.service';
 import { createError } from '../../middlewares/error.middleware';
 import { getIO } from '../../sockets/socket.server';
 
@@ -31,21 +32,39 @@ export class MessageService {
     if (!conversation) throw createError('Conversation not found', 404);
 
     const { type, content, mediaUrl, fileName } = body;
-    const phone = conversation.contact.phone;
+    const contact = conversation.contact;
+    const phone = contact.phone;
     if (!phone) throw createError('Contact has no phone number', 400);
+
+    const contactMeta = contact.metadata as { whatsappId?: string } | null;
+    const whatsappId = contactMeta?.whatsappId;
 
     let wamid: string | undefined;
 
     try {
-      if (type === 'TEXT' && content) {
-        const res = await whatsappService.sendTextMessage(conversation.channelId, phone, content);
-        wamid = res.messages?.[0]?.id;
-      } else if (type === 'IMAGE' && mediaUrl) {
-        const res = await whatsappService.sendImageMessage(conversation.channelId, phone, mediaUrl, content);
-        wamid = res.messages?.[0]?.id;
-      } else if (type === 'DOCUMENT' && mediaUrl && fileName) {
-        const res = await whatsappService.sendDocumentMessage(conversation.channelId, phone, mediaUrl, fileName, content);
-        wamid = res.messages?.[0]?.id;
+      if (conversation.channel.type === 'WHATSAPP_UNOFFICIAL') {
+        const target = whatsappId || phone;
+        if (type === 'TEXT' && content) {
+          const res = await whatsAppUnofficialService.sendTextMessage(conversation.channelId, target, content);
+          wamid = res.id;
+        } else if (type === 'IMAGE' && mediaUrl) {
+          const res = await whatsAppUnofficialService.sendImageMessage(conversation.channelId, target, mediaUrl, content);
+          wamid = res.id;
+        } else if (type === 'DOCUMENT' && mediaUrl && fileName) {
+          const res = await whatsAppUnofficialService.sendDocumentMessage(conversation.channelId, target, mediaUrl, fileName, content);
+          wamid = res.id;
+        }
+      } else {
+        if (type === 'TEXT' && content) {
+          const res = await whatsappService.sendTextMessage(conversation.channelId, phone, content);
+          wamid = res.messages?.[0]?.id;
+        } else if (type === 'IMAGE' && mediaUrl) {
+          const res = await whatsappService.sendImageMessage(conversation.channelId, phone, mediaUrl, content);
+          wamid = res.messages?.[0]?.id;
+        } else if (type === 'DOCUMENT' && mediaUrl && fileName) {
+          const res = await whatsappService.sendDocumentMessage(conversation.channelId, phone, mediaUrl, fileName, content);
+          wamid = res.messages?.[0]?.id;
+        }
       }
     } catch (err: any) {
       const msg = await prisma.message.create({

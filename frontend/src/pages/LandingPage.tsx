@@ -127,58 +127,58 @@ export default function LandingPage() {
               </button>
             </div>
 
-            <button className="md:hidden p-2 text-gray-500" onClick={() => setMobileMenu(true)}>
+            <button className="md:hidden p-2.5 -mr-2 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-lg transition-colors" onClick={() => setMobileMenu(true)} aria-label="Buka menu">
               <Menu className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {mobileMenu && (
-          <div className="fixed inset-0 z-50 md:hidden">
-            <div className="absolute inset-0 bg-black/40" onClick={() => setMobileMenu(false)} />
-            <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-xl">
-              <div className="flex items-center justify-between px-4 h-16 border-b border-gray-100">
-                <span className="font-bold text-lg">Menu</span>
-                <button onClick={() => setMobileMenu(false)} className="p-2 text-gray-500">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-4 space-y-4">
-                {['Fitur', 'Blog', 'Kontak'].map((item) => (
-                  <a key={item} href="#" className="block text-sm font-medium text-gray-600 hover:text-gray-900 py-2">{item}</a>
-                ))}
-                <div className="flex items-center gap-1 text-sm font-medium text-gray-600 py-2">
-                  <Globe className="w-4 h-4" />
-                  Indonesia
-                </div>
-                <hr className="border-gray-100" />
-                <button onClick={() => navigate('/login')} className="w-full text-sm font-medium text-gray-700 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50">
-                  Masuk
-                </button>
-                <button className="w-full text-sm font-medium text-white py-2.5 rounded-xl" style={{ background: '#18a6fc' }}>
-                  Coba Demo Sekarang
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </header>
 
+      {/* Mobile menu with smooth transition - outside header for proper z-index */}
+      <div className={`fixed inset-0 z-[60] md:hidden transition-all duration-300 ease-in-out ${mobileMenu ? 'visible' : 'invisible'}`}>
+        <div className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${mobileMenu ? 'opacity-100' : 'opacity-0'}`} onClick={() => setMobileMenu(false)} />
+        <div className={`absolute right-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white shadow-xl transition-transform duration-300 ease-in-out ${mobileMenu ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="flex items-center justify-between px-5 h-16 border-b border-gray-100">
+            <span className="font-bold text-lg text-gray-900">Menu</span>
+            <button onClick={() => setMobileMenu(false)} className="p-2.5 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-lg transition-colors" aria-label="Tutup menu">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="p-5 space-y-1">
+            {['Fitur', 'Blog', 'Kontak'].map((item) => (
+              <a key={item} href="#" className="block text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-50 py-3 px-3 rounded-xl transition-colors">{item}</a>
+            ))}
+            <div className="flex items-center gap-2 text-sm font-medium text-gray-600 py-3 px-3">
+              <Globe className="w-4 h-4" />
+              Indonesia
+            </div>
+            <hr className="border-gray-100 my-3" />
+            <button onClick={() => navigate('/login')} className="w-full text-sm font-medium text-gray-700 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+              Masuk
+            </button>
+            <button className="w-full text-sm font-medium text-white py-3 rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#18a6fc' }}>
+              Coba Demo Sekarang
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Hero */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className="pt-28 pb-16 sm:pt-32 sm:pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium mb-6"
             style={{ background: 'rgba(24, 166, 252, 0.1)', color: '#18a6fc' }}>
             <Zap className="w-4 h-4" />
             Platform AI Agent untuk Bisnis Indonesia
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight max-w-4xl mx-auto">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight max-w-4xl mx-auto">
             Satu AI untuk Mengelola{' '}
             <span style={{ color: '#18a6fc' }}>Chat, CRM,</span>
-            <br />
+            <br className="hidden sm:block" />
             dan Otomatisasi Bisnis
           </h1>
-          <p className="mt-6 text-lg text-gray-500 max-w-2xl mx-auto leading-relaxed">
+          <p className="mt-6 text-base sm:text-lg text-gray-500 max-w-2xl mx-auto leading-relaxed px-2">
             malesin.ai adalah platform AI agent terdepan di Indonesia yang menggabungkan AI agent cerdas,
             omnichannel CRM, dan sistem order otomatis dalam satu platform.
           </p>
@@ -199,9 +199,9 @@ export default function LandingPage() {
       </section>
 
       {/* Stats */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
+      <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 p-8 rounded-2xl border border-gray-100 shadow-sm"
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm"
             style={{ background: 'linear-gradient(135deg, rgba(24,166,252,0.03) 0%, rgba(139,92,246,0.03) 100%)' }}>
             {stats.map((s) => (
               <div key={s.label} className="text-center">
@@ -214,7 +214,7 @@ export default function LandingPage() {
       </section>
 
       {/* TikTok Integration */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -222,7 +222,7 @@ export default function LandingPage() {
                 style={{ background: 'rgba(24, 166, 252, 0.1)', color: '#18a6fc' }}>
                 3K+ <span className="text-gray-400 font-normal">TikTok Integration</span>
               </div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
+              <h2 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight">
                 Kelola TikTok & Instagram dari Satu Dashboard
               </h2>
               <p className="mt-4 text-gray-500 leading-relaxed">
@@ -231,7 +231,7 @@ export default function LandingPage() {
                 Anda tanpa bolak-balik aplikasi. Didukung oleh TikTok Developer Platform untuk koneksi yang aman dan andal.
               </p>
               <div className="mt-6 space-y-3">
-                <button className="flex items-center gap-2 text-white font-medium px-6 py-3 rounded-xl text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
+                <button className="w-full sm:w-auto flex items-center justify-center gap-2 text-white font-medium px-6 py-3 rounded-xl text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
                   style={{ background: '#18a6fc' }}>
                   Continue with TikTok
                   <ArrowRight className="w-4 h-4" />
@@ -295,7 +295,7 @@ export default function LandingPage() {
       </section>
 
       {/* One Platform Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8" style={{ background: '#F8FAFC' }}>
+      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8" style={{ background: '#F8FAFC' }}>
         <div className="max-w-7xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
             Satu Platform untuk Mengelola Semua Percakapan Customer
@@ -305,7 +305,7 @@ export default function LandingPage() {
             tanpa perlu menambah tim. AI agent cerdas, omnichannel CRM, sistem order otomatis, & broadcast marketing
             dalam satu platform.
           </p>
-          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {features.map((f) => (
               <div key={f.title} className="text-left p-6 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                 <div className="w-11 h-11 rounded-xl flex items-center justify-center mb-4" style={{ background: `${f.color}15` }}>
@@ -320,7 +320,7 @@ export default function LandingPage() {
       </section>
 
       {/* Chat Demo / Order Automation */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -401,7 +401,7 @@ export default function LandingPage() {
       </section>
 
       {/* AI Agent Builder */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8" style={{ background: '#F8FAFC' }}>
+      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8" style={{ background: '#F8FAFC' }}>
         <div className="max-w-7xl mx-auto">
           <div className="text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
@@ -411,11 +411,11 @@ export default function LandingPage() {
               Kelola semua chat dengan AI yang mudah dibuat. Latih pakai data bisnismu dan hubungkan ke sistem lain tanpa ribet.
             </p>
           </div>
-          <div className="mt-12 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {builderFeatures.map((f) => (
               <div key={f.title} className="p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                 <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ background: 'rgba(24,166,252,0.08)' }}>
-                  <f.icon className="w-4.5 h-4.5" style={{ color: '#18a6fc' }} />
+                  <f.icon className="w-5 h-5" style={{ color: '#18a6fc' }} />
                 </div>
                 <h3 className="font-semibold text-gray-900 text-sm">{f.title}</h3>
                 <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{f.desc}</p>
@@ -426,18 +426,18 @@ export default function LandingPage() {
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
               Bukti Nyata dari Bisnis yang Menggunakan malesin.ai
             </h2>
-            <p className="mt-4 text-gray-500 max-3xl mx-auto leading-relaxed">
+            <p className="mt-4 text-gray-500 max-w-3xl mx-auto leading-relaxed">
               malesin.ai hadir untuk UMKM yang butuh AI customer service terjangkau hingga brand berkembang
               yang butuh platform omnichannel lengkap.
             </p>
           </div>
-          <div className="mt-12 grid sm:grid-cols-2 gap-6">
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-6">
             {testimonials.map((t) => (
               <div key={t.name} className="p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300">
                 <div className="flex gap-1 mb-4">
@@ -463,7 +463,7 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8" style={{ background: '#F8FAFC' }}>
+      <section className="py-16 sm:py-20 px-4 sm:px-6 lg:px-8" style={{ background: '#F8FAFC' }}>
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
             Ubah Setiap Percakapan Jadi Penjualan
@@ -485,9 +485,9 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer className="py-16 px-4 sm:px-6 lg:px-8 bg-gray-900">
+      <footer className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8 bg-gray-900">
         <div className="max-w-7xl mx-auto">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8">
             <div className="lg:col-span-2">
               <div className="flex items-center gap-2 mb-4">
                 <img src="/logoM.png" alt="malesin.ai" className="w-8 h-8 object-contain" />

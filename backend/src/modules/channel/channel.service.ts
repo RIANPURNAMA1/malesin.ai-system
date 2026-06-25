@@ -5,7 +5,7 @@ import { createError } from '../../middlewares/error.middleware';
 
 export interface CreateChannelDto {
   name: string;
-  type: 'WHATSAPP' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK';
+  type: 'WHATSAPP' | 'WHATSAPP_UNOFFICIAL' | 'INSTAGRAM' | 'FACEBOOK' | 'TIKTOK';
   wabaId?: string;
   phoneNumberId?: string;
   accessToken?: string;

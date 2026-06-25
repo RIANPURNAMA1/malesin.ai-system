@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, MoreVertical, CheckCheck, Check, Clock, X, UserPlus, ChevronDown } from 'lucide-react';
+import { Send, Paperclip, MoreVertical, CheckCheck, Check, Clock, X, UserPlus, ChevronDown, ChevronLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { useInboxStore } from '../../store/inbox.store';
 import { useMessages, useSendMessage, useUpdateStatus, useConversation } from '../../hooks/useConversation';
@@ -7,9 +7,9 @@ import { Avatar, Spinner } from '../ui/index';
 import { Message, Conversation } from '../../types';
 import { useSocketStore } from '../../store/socket.store';
 
-interface Props { conversationId: string; onOpenDetail: () => void; }
+interface Props { conversationId: string; onOpenDetail: () => void; onBack?: () => void; }
 
-export default function ChatWindow({ conversationId, onOpenDetail }: Props) {
+export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Props) {
   const { messages } = useInboxStore();
   const { socket } = useSocketStore();
   const { isLoading: loadingMsgs } = useMessages(conversationId);
@@ -34,12 +34,17 @@ export default function ChatWindow({ conversationId, onOpenDetail }: Props) {
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
-      <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-5 flex-shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-3 lg:px-5 flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          {onBack && (
+            <button onClick={onBack} className="lg:hidden p-1.5 -ml-1 text-gray-500 hover:text-gray-700 active:bg-gray-100 rounded-lg transition-colors">
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+          )}
           <Avatar name={conv.contact.name} size="sm" />
           <div>
             <p className="font-semibold text-gray-900 text-sm">{conv.contact.name}</p>
-            <p className="text-xs text-gray-400">{conv.contact.phone} · {conv.channel.name}</p>
+            <p className="text-xs text-gray-400">{(conv.contact as any).metadata?.whatsappId || conv.contact.phone} · {conv.channel.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -7,11 +7,12 @@ import { createError } from '../../middlewares/error.middleware';
 import { Prisma } from '@prisma/client';
 
 class ContactService {
-  async findAll(companyId: string, query: { search?: string; page?: number; limit?: number }) {
-    const { search, page = 1, limit = 20 } = query;
+  async findAll(companyId: string, query: { search?: string; page?: number; limit?: number; sourceChannel?: string }) {
+    const { search, page = 1, limit = 20, sourceChannel } = query;
     const skip = (page - 1) * limit;
     const where: Prisma.ContactWhereInput = {
       companyId,
+      ...(sourceChannel && { sourceChannel }),
       ...(search && { OR: [{ name: { contains: search } }, { phone: { contains: search } }, { email: { contains: search } }] }),
     };
     const [contacts, total] = await Promise.all([
@@ -54,6 +55,7 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       search: req.query.search as string,
       page: Number(req.query.page) || 1,
       limit: Number(req.query.limit) || 20,
+      sourceChannel: req.query.sourceChannel as string | undefined,
     });
     paginate(res, contacts, total, page, limit);
   } catch (err) { next(err); }

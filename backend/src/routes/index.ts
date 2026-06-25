@@ -11,6 +11,7 @@ import postRoutes from '../modules/publish/post.routes';
 import socialAuthRoutes from '../modules/social-auth/social-auth.routes';
 import tiktokAuthRoutes from '../modules/social-auth/tiktok-auth.routes';
 import tiktokPublishRoutes from '../modules/social-auth/tiktok-publish.routes';
+import whatsAppUnofficialRoutes from '../modules/channel/whatsapp-unofficial.routes';
 import { handleWebhookGet, handleWebhookPost } from '../modules/webhook/webhook.handler';
 import { handleInstagramWebhookGet, handleInstagramWebhookPost } from '../modules/webhook/instagram.handler';
 
@@ -38,5 +39,8 @@ router.post('/webhook', handleWebhookPost);
 // Instagram Webhook
 router.get('/webhook/instagram', handleInstagramWebhookGet);
 router.post('/webhook/instagram', handleInstagramWebhookPost);
+
+// WhatsApp Unofficial
+router.use('/whatsapp-unofficial', whatsAppUnofficialRoutes);
 
 export default router;
