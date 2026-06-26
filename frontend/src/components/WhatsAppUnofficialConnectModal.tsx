@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { XCircle, Loader2, Smartphone, CheckCircle2, AlertCircle } from 'lucide-react';
-import { channelService } from '../services/index';
 import { useSocketStore } from '../store/socket.store';
 import toast from 'react-hot-toast';
 import api from '../services/api';
@@ -18,30 +17,13 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
   const [errorMsg, setErrorMsg] = useState('');
   const qc = useQueryClient();
   const { socket } = useSocketStore();
-  const socketRef = useRef(socket);
+  const channelIdRef = useRef('');
 
   useEffect(() => {
-    socketRef.current = socket;
-  }, [socket]);
-
-  useEffect(() => {
-    if (!socket || !channelId) return;
-
-    const onQr = (data: { channelId: string; qr: string }) => {
-      if (data.channelId === channelId) {
-        setQrCode(data.qr);
-        setStep('qr');
-      }
-    };
-
-    const onAuthenticated = (data: { channelId: string }) => {
-      if (data.channelId === channelId) {
-        toast.success('WhatsApp authenticated!');
-      }
-    };
+    if (!socket) return;
 
     const onReady = (data: { channelId: string }) => {
-      if (data.channelId === channelId) {
+      if (data.channelId === channelIdRef.current) {
         setStep('connected');
         qc.invalidateQueries({ queryKey: ['channels'] });
         toast.success('WhatsApp Unofficial berhasil terhubung!');
@@ -49,24 +31,20 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
     };
 
     const onError = (data: { channelId: string; error: string }) => {
-      if (data.channelId === channelId) {
+      if (data.channelId === channelIdRef.current) {
         setErrorMsg(data.error);
         setStep('error');
       }
     };
 
-    socket.on('wa-unofficial:qr', onQr);
-    socket.on('wa-unofficial:authenticated', onAuthenticated);
     socket.on('wa-unofficial:ready', onReady);
     socket.on('wa-unofficial:error', onError);
 
     return () => {
-      socket.off('wa-unofficial:qr', onQr);
-      socket.off('wa-unofficial:authenticated', onAuthenticated);
       socket.off('wa-unofficial:ready', onReady);
       socket.off('wa-unofficial:error', onError);
     };
-  }, [socket, channelId, qc]);
+  }, [socket, qc]);
 
   const initMutation = useMutation({
     mutationFn: async () => {
@@ -74,8 +52,18 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
       return res.data.data;
     },
     onSuccess: (data) => {
-      setChannelId(data.id);
-      toast.success('Menghubungkan ke WhatsApp... Scan QR code!');
+      const channel = data.channel || data;
+      const qr = data.qr;
+      setChannelId(channel.id);
+      channelIdRef.current = channel.id;
+      if (qr) {
+        setQrCode(qr);
+        setStep('qr');
+        toast.success('Scan QR code dengan WhatsApp Anda!');
+      } else {
+        setErrorMsg('QR code tidak diterima dari server');
+        setStep('error');
+      }
     },
     onError: (err: any) => {
       setErrorMsg(err?.response?.data?.message || 'Gagal inisialisasi');
@@ -149,32 +137,28 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
 
         {step === 'qr' && (
           <div className="px-6 py-8 text-center space-y-5">
-            {initMutation.isPending ? (
-              <div className="space-y-4 py-8">
-                <Loader2 className="w-12 h-12 animate-spin mx-auto text-primary" />
-                <p className="text-gray-700 font-medium">Initializing WhatsApp client...</p>
-                <p className="text-sm text-gray-400">Mempersiapkan browser untuk generate QR code</p>
-              </div>
-            ) : qrCode ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-center">
+            <div className="space-y-4">
+              <div className="flex items-center justify-center">
+                {qrCode ? (
                   <img src={qrCode} alt="QR Code" className="w-64 h-64 border-2 border-gray-200 rounded-xl p-2" />
-                </div>
-                <p className="text-sm font-medium text-gray-700">Scan QR code ini dengan WhatsApp Anda</p>
-                <p className="text-xs text-gray-400">
-                  Buka WhatsApp {'>'} Settings {'>'} Linked Devices {'>'} Link a Device
-                </p>
-                <div className="flex items-center justify-center gap-1 text-xs text-amber-600">
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  Menunggu scan...
-                </div>
+                ) : (
+                  <div className="w-64 h-64 border-2 border-dashed border-gray-200 rounded-xl p-2 flex items-center justify-center bg-gray-50">
+                    <div className="text-center space-y-2">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                      <p className="text-xs text-gray-400">Menyiapkan QR code...</p>
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : (
-              <div className="space-y-4 py-8">
-                <Loader2 className="w-12 h-12 animate-spin mx-auto text-primary" />
-                <p className="text-gray-700 font-medium">Waiting for QR code...</p>
+              <p className="text-sm font-medium text-gray-700">Scan QR code ini dengan WhatsApp Anda</p>
+              <p className="text-xs text-gray-400">
+                Buka WhatsApp {'>'} Settings {'>'} Linked Devices {'>'} Link a Device
+              </p>
+              <div className="flex items-center justify-center gap-1 text-xs text-amber-600">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Menunggu scan...
               </div>
-            )}
+            </div>
           </div>
         )}
 

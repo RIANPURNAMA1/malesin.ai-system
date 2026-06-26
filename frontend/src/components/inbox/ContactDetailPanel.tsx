@@ -38,7 +38,7 @@ export default function ContactDetailPanel({ conversationId, onClose }: Props) {
           </div>
         </div>
         <div className="mt-4 space-y-3">
-          {contact.metadata?.whatsappId && <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-400 flex-shrink-0" /><span className="truncate font-mono text-xs">{contact.metadata.whatsappId as string}</span></div>}
+          {contact.metadata?.whatsappId && <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-400 flex-shrink-0" /><span className="truncate font-mono text-xs">{(contact.metadata.whatsappId as string).replace(/@(c\.us|s\.whatsapp\.net|lid|g\.us|broadcast)$/, '')}</span></div>}
           {contact.phone && <div className="flex items-center gap-2 text-sm text-gray-600"><Phone className="w-4 h-4 text-gray-400 flex-shrink-0" /><span className="truncate">{contact.phone}</span></div>}
           {contact.email && <div className="flex items-center gap-2 text-sm text-gray-600"><Mail className="w-4 h-4 text-gray-400 flex-shrink-0" /><span className="truncate">{contact.email}</span></div>}
           <div className="flex items-center gap-2 text-sm text-gray-600"><Clock className="w-4 h-4 text-gray-400 flex-shrink-0" /><span>First contact: {format(new Date(contact.firstContactDate), 'dd MMM yyyy')}</span></div>

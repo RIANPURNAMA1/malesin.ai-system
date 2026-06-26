@@ -45,7 +45,7 @@ cd backend
 npm install
 cp .env.example .env
 # Edit .env with your DB/Redis credentials
-
+npx prisma migrate reset
 npx prisma migrate dev
 npx tsx src/seed-admin.ts
 npm run dev
@@ -133,3 +133,72 @@ omnichannel/
 | `ENCRYPTION_KEY` | 64-char hex key for AES-256-GCM (access token encryption) |
 | `FRONTEND_URL` | CORS allowed origin |
 | `WHATSAPP_API_VERSION` | Meta Graph API version (default: v18.0) |
+
+
+di chat itu harusnya kaya data contact tuh jadi tampil si nomor aslinya di whatsapp id knaapa di kolom chat bukan no whatsaap malah no lid Contacts
+228 contacts total
+
+
+All Sources
+Search contacts...
+Contact	Phone	Source	WhatsApp ID	First Contact	Messages	Action
+A
+andikaade02
+6285201106086	WHATSAPP UNOFFICIAL	6285201106086@c.us	26 Jun 2026	0	
+P
+Pikriii
+262989571719403	WHATSAPP UNOFFICIAL	601111908177@c.us	26 Jun 2026	0	
+P
+Pikriii
+601111908177	WHATSAPP UNOFFICIAL	601111908177@c.us	26 Jun 2026	0	
+A
+andikaade02
+251431764361337	WHATSAPP UNOFFICIAL	6285201106086@c.us	26 Jun 2026	0	
+$
+$whoami
+6285194263285	WHATSAPP UNOFFICIAL	6285194263285@c.us	26 Jun 2026	0	
+M
+Mbhs
+6287830341605	WHATSAPP UNOFFICIAL	6287830341605@c.us	26 Jun 2026	0	
+M
+Mbhs
+216066936557634	WHATSAPP UNOFFICIAL	6287830341605@c.us	26 Jun 2026	0	
+$
+$whoami
+158454899589140	WHATSAPP UNOFFICIAL	6285194263285@c.us	26 Jun 2026	0	
+Y
+Yazid Karim
+216599562825942	WHATSAPP UNOFFICIAL	6285929977185@c.us	26 Jun 2026	0	
+Y
+Yazid Karim
+6285929977185	WHATSAPP UNOFFICIAL	6285929977185@c.us	26 Jun 2026	0	
+D
+dika
+279323701428420	WHATSAPP UNOFFICIAL	6283161593659@c.us	26 Jun 2026	0	
+K
+Kelaz King 👑🐟 </>
+6281317161080	WHATSAPP UNOFFICIAL	6281317161080@c.us	26 Jun 2026	0	
+D
+dika
+6283161593659	WHATSAPP UNOFFICIAL	6283161593659@c.us	26 Jun 2026	0	
+M
+M Firman Nabil
+52454502748404	WHATSAPP UNOFFICIAL	6285748490757@c.us	26 Jun 2026	0	
+M
+M Firman Nabil
+6285748490757	WHATSAPP UNOFFICIAL	6285748490757@c.us	26 Jun 2026	0	
+K
+Kelaz King 👑🐟 </>
+30189509714128	WHATSAPP UNOFFICIAL	6281317161080@c.us	26 Jun 2026	0	
+누
+누나 데위
+6282298673065	WHATSAPP UNOFFICIAL	6282298673065@c.us	26 Jun 2026	0	
+N
+Novi Ariyanto
+6285643549407	WHATSAPP UNOFFICIAL	6285643549407@c.us	26 Jun 2026	0	
+A
+alexsandro
+5491134509803	WHATSAPP UNOFFICIAL	5491134509803@c.us	26 Jun 2026	0	
+�
+😆
+6283832168060	WHATSAPP UNOFFICIAL	6283832168060@c.us	26 Jun 2026	0 nah harusnya gini seperti contact

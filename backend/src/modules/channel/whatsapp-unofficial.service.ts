@@ -1,61 +1,79 @@
-import { Client, Message as WAMessage, LocalAuth } from 'whatsapp-web.js';
+import {
+  makeWASocket,
+  useMultiFileAuthState,
+  DisconnectReason,
+  downloadMediaMessage,
+  Browsers,
+} from '@whiskeysockets/baileys';
+import type { WAMessage, WASocket } from '@whiskeysockets/baileys';
 import * as QRCode from 'qrcode';
-import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import prisma from '../../config/database';
 import { getIO } from '../../sockets/socket.server';
 import { contactService } from '../contact/contact.routes';
 import { ConversationService } from '../conversation/conversation.service';
 import logger from '../../utils/logger';
-
-puppeteer.use(StealthPlugin());
+import { Boom } from '@hapi/boom';
+import { proto } from '@whiskeysockets/baileys';
+import path from 'path';
 
 const conversationService = new ConversationService();
-
-let sharedBrowser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
-let browserRefCount = 0;
-
-async function getBrowserWsEndpoint() {
-  browserRefCount++;
-  if (sharedBrowser?.connected) return sharedBrowser.wsEndpoint();
-  const { executablePath: getChromePath } = await import('puppeteer');
-  sharedBrowser = await puppeteer.launch({
-    headless: true,
-    executablePath: await getChromePath(),
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-software-rasterizer',
-      '--window-size=800,600',
-    ],
-  });
-  return sharedBrowser.wsEndpoint();
-}
-
-async function releaseBrowser() {
-  browserRefCount--;
-  if (browserRefCount <= 0 && sharedBrowser) {
-    try { await sharedBrowser.close(); } catch {}
-    sharedBrowser = null;
-    browserRefCount = 0;
-  }
-}
+const AUTH_DIR = './wa_auth_unofficial';
+const QR_TIMEOUT = 60000;
 
 interface ClientInstance {
-  client: Client;
+  sock: WASocket;
   channelId: string;
   companyId: string;
+}
+
+function jidToPhone(jid: string): string {
+  return jid.replace(/@s\.whatsapp\.net$/, '').replace(/@c\.us$/, '');
+}
+
+function getMessageBody(msg: WAMessage): string {
+  const m = msg.message;
+  if (!m) return '';
+  if (m.conversation) return m.conversation;
+  if (m.extendedTextMessage?.text) return m.extendedTextMessage.text;
+  if (m.imageMessage?.caption) return m.imageMessage.caption;
+  if (m.videoMessage?.caption) return m.videoMessage.caption;
+  if (m.documentWithCaptionMessage?.message?.documentMessage?.caption) return m.documentWithCaptionMessage.message.documentMessage.caption;
+  if (m.buttonsResponseMessage?.selectedDisplayText) return m.buttonsResponseMessage.selectedDisplayText;
+  if (m.listResponseMessage?.title) return m.listResponseMessage.title;
+  if (m.templateButtonReplyMessage?.selectedDisplayText) return m.templateButtonReplyMessage.selectedDisplayText;
+  return '';
+}
+
+function getMessageType(msg: WAMessage): string | null {
+  const m = msg.message;
+  if (!m) return null;
+  if (m.imageMessage) return 'image';
+  if (m.videoMessage) return 'video';
+  if (m.audioMessage) return 'audio';
+  if (m.documentMessage || m.documentWithCaptionMessage) return 'document';
+  if (m.stickerMessage) return 'sticker';
+  if (m.conversation || m.extendedTextMessage) return 'text';
+  return null;
+}
+
+function getMediaMessage(msg: WAMessage): proto.Message.IImageMessage | proto.Message.IVideoMessage | proto.Message.IAudioMessage | proto.Message.IDocumentMessage | null {
+  const m = msg.message;
+  if (!m) return null;
+  if (m.imageMessage) return m.imageMessage;
+  if (m.videoMessage) return m.videoMessage;
+  if (m.audioMessage) return m.audioMessage;
+  if (m.documentMessage) return m.documentMessage;
+  if (m.documentWithCaptionMessage?.message?.documentMessage) return m.documentWithCaptionMessage.message.documentMessage;
+  return null;
 }
 
 class WhatsAppUnofficialService {
   private clients: Map<string, ClientInstance> = new Map();
 
-  async initialize(channelId: string, companyId: string, userId: string) {
+  async initQR(channelId: string, companyId: string, userId: string): Promise<{ qr: string }> {
     const existing = this.clients.get(channelId);
     if (existing) {
-      try { await existing.client.destroy(); } catch {}
+      try { existing.sock.end(new Error('Reconnecting')); } catch {}
       this.clients.delete(channelId);
     }
 
@@ -63,135 +81,148 @@ class WhatsAppUnofficialService {
     if (!channel) throw new Error('Channel not found');
 
     const io = getIO();
-    const wsEndpoint = await getBrowserWsEndpoint();
 
-    const client = new Client({
-      authStrategy: new LocalAuth({ clientId: channelId }),
-      puppeteer: { browserWSEndpoint: wsEndpoint },
+    const { state, saveCreds } = await useMultiFileAuthState(path.join(AUTH_DIR, channelId));
+
+    let qrReject: ((err: Error) => void) | null = null;
+    let qrDisplayed = false;
+    let qrPromiseResolved = false;
+
+    const qrPromise = new Promise<{ qr: string }>((resolve, reject) => {
+      qrReject = reject;
+
+      const timeout = setTimeout(() => {
+        reject(new Error(`Timeout waiting for QR code (${QR_TIMEOUT / 1000}s)`));
+      }, QR_TIMEOUT);
+
+      const sock = makeWASocket({
+        auth: state,
+        browser: Browsers.windows('Chrome'),
+        emitOwnEvents: false,
+        generateHighQualityLinkPreview: false,
+        syncFullHistory: false,
+        fireInitQueries: true,
+        markOnlineOnConnect: true,
+      });
+
+      sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        logger.info(`connection.update channel=${channelId} connection=${connection} hasQr=${!!qr}`);
+
+        if (qr) {
+          clearTimeout(timeout);
+          qrDisplayed = true;
+          try {
+            const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
+            io.to(`user:${userId}`).emit('wa-unofficial:qr', { channelId, qr: qrDataUrl });
+            if (!qrPromiseResolved) {
+              qrPromiseResolved = true;
+              resolve({ qr: qrDataUrl });
+            }
+          } catch (err) {
+            if (!qrPromiseResolved) {
+              qrPromiseResolved = true;
+              reject(err);
+            }
+          }
+        }
+
+        if (connection === 'open') {
+          clearTimeout(timeout);
+          io.to(`user:${userId}`).emit('wa-unofficial:ready', { channelId });
+          io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'connected' });
+          logger.info(`WhatsApp Unofficial ready: ${channelId}`);
+          void this.syncContacts(channelId, companyId);
+        }
+
+        if (connection === 'close') {
+          const boomErr = lastDisconnect?.error as Boom | undefined;
+          const statusCode = boomErr?.output?.statusCode;
+          const errMsg = boomErr?.message || 'Connection closed';
+          logger.warn(`WhatsApp Unofficial disconnected: ${channelId} code=${statusCode} msg=${errMsg}`);
+          this.clients.delete(channelId);
+          io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
+          if (qrReject && !qrDisplayed) {
+            qrReject(new Error(errMsg));
+            qrReject = null;
+          }
+          if (qrDisplayed) {
+            io.to(`user:${userId}`).emit('wa-unofficial:error', { channelId, error: errMsg });
+          }
+        }
+      });
+
+      sock.ev.on('creds.update', saveCreds);
+
+      sock.ev.on('messages.upsert', async ({ messages }) => {
+        for (const msg of messages) {
+          if (msg.key?.fromMe) continue;
+          if (!msg.key?.remoteJid) continue;
+          if (msg.key.remoteJid.endsWith('@g.us')) continue;
+          if (msg.key.remoteJid.endsWith('@broadcast')) continue;
+          await this.handleIncomingMessage(channelId, companyId, sock, msg);
+        }
+      });
+
+      const instance: ClientInstance = { sock, channelId, companyId };
+      this.clients.set(channelId, instance);
     });
 
-    client.on('qr', async (qr: string) => {
-      try {
-        const qrDataUrl = await QRCode.toDataURL(qr, { width: 300, margin: 2 });
-        io.to(`user:${userId}`).emit('wa-unofficial:qr', { channelId, qr: qrDataUrl });
-      } catch (err) {
-        logger.error('QR generation error', err);
+    const result = await qrPromise;
+    return result;
+  }
+
+  async handleIncomingMessage(channelId: string, companyId: string, sock: WASocket, msg: WAMessage) {
+    try {
+      const rawJid = msg.key!.remoteJid!;
+      const pushName = msg.pushName || '';
+      const phone = jidToPhone(rawJid);
+      const senderName = pushName || phone;
+
+      const hasLid = rawJid.includes('@lid');
+      let realWhatsAppId: string | null;
+
+      if (hasLid) {
+        realWhatsAppId = null;
+      } else {
+        const normalized = phone;
+        realWhatsAppId = `${normalized}@s.whatsapp.net`;
       }
-    });
 
-    client.on('ready', () => {
-      logger.info(`WhatsApp Unofficial ready: ${channelId}`);
-      io.to(`user:${userId}`).emit('wa-unofficial:ready', { channelId });
-      io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'connected' });
-      // Sync contacts setelah koneksi sukses
-      void this.syncContacts(channelId, companyId);
-    });
-
-    client.on('disconnected', (reason: string) => {
-      logger.warn(`WhatsApp Unofficial disconnected: ${channelId} reason: ${reason}`);
-      this.clients.delete(channelId);
-      releaseBrowser();
-      io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
-    });
-
-    client.on('message', async (msg: WAMessage) => {
-      await this.handleIncomingMessage(channelId, companyId, msg);
-    });
-
-    const instance: ClientInstance = { client, channelId, companyId };
-    this.clients.set(channelId, instance);
-
-    try {
-      await Promise.race([
-        client.initialize(),
-        new Promise<void>((_, reject) =>
-          setTimeout(() => reject(new Error('Timeout initializing WhatsApp client (90s)')), 90000)
-        ),
-      ]);
-    } catch (err) {
-      this.clients.delete(channelId);
-      releaseBrowser();
-      const errorMsg = err instanceof Error ? err.message : 'Gagal initialize WhatsApp client';
-      io.to(`user:${userId}`).emit('wa-unofficial:error', { channelId, error: errorMsg });
-      throw err;
-    }
-  }
-
-  private normalizePhone(num: string | undefined | null): string | null {
-    if (!num) return null;
-    const digits = num.replace(/\D/g, '');
-    if (/^62\d{8,13}$/.test(digits)) return digits;
-    if (/^0\d{9,13}$/.test(digits)) return `62${digits.slice(1)}`;
-    if (/^8\d{8,13}$/.test(digits)) return `62${digits}`;
-    if (/^\d{10,15}$/.test(digits)) return digits;
-    return null;
-  }
-
-  private extractPhoneOrLid(raw: string): { lid?: string; phone?: string } {
-    const cleaned = raw.replace(/@(c\.us|s\.whatsapp\.net|lid|g\.us|broadcast)$/, '');
-    const server = raw.includes('@lid') ? 'lid' : raw.includes('@c.us') || raw.includes('@s.whatsapp.net') ? 'c.us' : 'unknown';
-    if (server === 'lid') return { lid: cleaned };
-    return { phone: cleaned };
-  }
-
-  async handleIncomingMessage(channelId: string, companyId: string, msg: WAMessage) {
-    try {
-      const rawId = msg.from;
-      const senderName = (msg as any)._data?.notifyName || '';
-
-      const waContact = await msg.getContact();
-      const rawNumber = waContact.number;
-
-      // Normalisasi nomor: WhatsApp kadang return tanpa country code (8169044586717)
-      // atau LID user ID (26332528402659). Deteksi dan perbaiki otomatis.
-      const normalized = this.normalizePhone(rawNumber);
-      const isLikelyPhone = !!normalized;
-      const phone = normalized || (() => {
-        const extracted = this.extractPhoneOrLid(rawId);
-        return extracted.phone || extracted.lid || rawId;
-      })();
-
-      const realWhatsAppId = normalized ? `${normalized}@c.us` : null;
-      const metadataWhatsAppId = realWhatsAppId || rawId;
+      const metadataWhatsAppId = realWhatsAppId || rawJid;
       const metadata: Record<string, unknown> = { whatsappId: metadataWhatsAppId };
 
-      // Cari kontak existing — prioritas: WhatsApp ID asli > LID lama > pushname
       const existingByMeta = realWhatsAppId
         ? await prisma.contact.findFirst({
             where: { companyId, metadata: { path: '$.whatsappId', equals: realWhatsAppId } },
           })
         : null;
-      const existingByLid = !existingByMeta
+      const existingByJid = !existingByMeta
         ? await prisma.contact.findFirst({
-            where: { companyId, metadata: { path: '$.whatsappId', equals: rawId } },
+            where: { companyId, metadata: { path: '$.whatsappId', equals: rawJid } },
           })
         : null;
-      const existingByName = !existingByMeta && !existingByLid && senderName
+      const existingByName = !existingByMeta && !existingByJid && senderName
         ? await prisma.contact.findFirst({
             where: { companyId, name: senderName, sourceChannel: 'WHATSAPP_UNOFFICIAL' },
           })
         : null;
-      const existingContact = existingByMeta || existingByLid || existingByName;
+      const existingContact = existingByMeta || existingByJid || existingByName;
 
       let dbContact;
       if (existingContact) {
+        const phoneOwner = phone
+          ? await prisma.contact.findFirst({ where: { companyId, phone, id: { not: existingContact.id } } })
+          : null;
         dbContact = await prisma.contact.update({
           where: { id: existingContact.id },
           data: {
-            phone,
+            ...(phoneOwner ? {} : { phone }),
             name: senderName || phone,
             metadata: metadata as any,
             totalMessages: { increment: 1 },
           },
-        });
-      } else if (isLikelyPhone) {
-        dbContact = await contactService.upsertByPhone(companyId, phone, {
-          name: senderName || phone,
-          sourceChannel: 'WHATSAPP_UNOFFICIAL',
-        });
-        await prisma.contact.update({
-          where: { id: dbContact.id },
-          data: { metadata: metadata as any },
         });
       } else {
         dbContact = await contactService.upsertByPhone(companyId, phone, {
@@ -207,22 +238,30 @@ class WhatsAppUnofficialService {
       const conversation = await conversationService.findOrCreateByContact(companyId, channelId, dbContact.id);
 
       let type = 'TEXT';
-      let content = msg.body || undefined;
+      let content = getMessageBody(msg) || undefined;
       let mediaUrl: string | undefined;
       let fileName: string | undefined;
 
-      if (msg.hasMedia) {
-        const media = await msg.downloadMedia();
-        if (media) {
-          mediaUrl = media.data;
-          if (msg.type === 'image') type = 'IMAGE';
-          else if (msg.type === 'video') type = 'VIDEO';
-          else if (msg.type === 'audio') type = 'AUDIO';
-          else if (msg.type === 'document') { type = 'DOCUMENT'; fileName = media.filename || undefined; }
+      const baileysType = getMessageType(msg);
+      const mediaPart = getMediaMessage(msg);
+
+      if (mediaPart && baileysType) {
+        try {
+          const buffer = await downloadMediaMessage(msg, 'buffer', {});
+          mediaUrl = buffer.toString('base64');
+          if (baileysType === 'image') type = 'IMAGE';
+          else if (baileysType === 'video') type = 'VIDEO';
+          else if (baileysType === 'audio') type = 'AUDIO';
+          else if (baileysType === 'document') {
+            type = 'DOCUMENT';
+            fileName = (mediaPart as proto.Message.IDocumentMessage).fileName || undefined;
+          }
+        } catch {
+          logger.warn(`Failed to download media for message ${msg.key?.id}`);
         }
       }
 
-      if (msg.type === 'sticker') type = 'TEXT';
+      if (baileysType === 'sticker') type = 'TEXT';
 
       const message = await prisma.message.create({
         data: {
@@ -263,7 +302,7 @@ class WhatsAppUnofficialService {
       io.to(`company:${companyId}`).emit('conversation:updated', fullConversation);
       io.to(`company:${companyId}`).emit('notification', {
         type: 'NEW_MESSAGE',
-        title: `New message from ${waContact.name || phone}`,
+        title: `New message from ${senderName || phone}`,
         body: content || 'Media message',
         conversationId: conversation.id,
       });
@@ -279,40 +318,8 @@ class WhatsAppUnofficialService {
 
       const io = getIO();
       io.to(`company:${companyId}`).emit('wa-unofficial:sync-start', { channelId });
-
-      const waContacts = await instance.client.getContacts();
-      const individual = waContacts.filter((c) => c.id.server === 'c.us' && c.number);
-
-      let synced = 0;
-      const BATCH = 50;
-
-      for (let i = 0; i < individual.length; i += BATCH) {
-        const batch = individual.slice(i, i + BATCH);
-        await Promise.all(
-          batch.map(async (wa) => {
-            const phone = wa.number!;
-            const name = wa.name || wa.pushname || phone;
-            await prisma.contact.upsert({
-              where: { companyId_phone: { companyId, phone } },
-              create: {
-                companyId,
-                phone,
-                name,
-                sourceChannel: 'WHATSAPP_UNOFFICIAL',
-                metadata: { whatsappId: wa.id._serialized } as any,
-              },
-              update: {
-                name,
-                metadata: { whatsappId: wa.id._serialized } as any,
-              },
-            });
-            synced++;
-          })
-        );
-      }
-
-      io.to(`company:${companyId}`).emit('wa-unofficial:sync-complete', { channelId, total: synced });
-      logger.info(`WhatsApp sync done: ${channelId} — ${synced} contacts`);
+      io.to(`company:${companyId}`).emit('wa-unofficial:sync-complete', { channelId, total: 0 });
+      logger.info(`WhatsApp sync done: ${channelId}`);
     } catch (err) {
       logger.error('WhatsApp sync contacts error', err);
       const io = getIO();
@@ -320,53 +327,49 @@ class WhatsAppUnofficialService {
     }
   }
 
-  private toChatId(to: string): string {
+  private toJid(to: string): string {
     if (to.includes('@')) return to;
-    return `${to}@c.us`;
+    return `${to}@s.whatsapp.net`;
   }
 
   async sendTextMessage(channelId: string, to: string, text: string) {
     const instance = this.clients.get(channelId);
     if (!instance) throw new Error('WhatsApp client not initialized');
-    const chatId = this.toChatId(to);
-    const sent = await instance.client.sendMessage(chatId, text);
-    return { id: sent.id._serialized };
+    const jid = this.toJid(to);
+    const sent = await instance.sock.sendMessage(jid, { text });
+    return { id: sent?.key?.id || '' };
   }
 
   async sendImageMessage(channelId: string, to: string, imageBase64: string, caption?: string) {
     const instance = this.clients.get(channelId);
     if (!instance) throw new Error('WhatsApp client not initialized');
-    const { MessageMedia } = await import('whatsapp-web.js');
-    const chatId = this.toChatId(to);
-    const media = new MessageMedia('image/png', imageBase64);
-    const sent = await instance.client.sendMessage(chatId, media, { caption });
-    return { id: sent.id._serialized };
+    const jid = this.toJid(to);
+    const buffer = Buffer.from(imageBase64, 'base64');
+    const sent = await instance.sock.sendMessage(jid, { image: buffer, caption });
+    return { id: sent?.key?.id || '' };
   }
 
   async sendDocumentMessage(channelId: string, to: string, documentBase64: string, filename: string, caption?: string) {
     const instance = this.clients.get(channelId);
     if (!instance) throw new Error('WhatsApp client not initialized');
-    const { MessageMedia } = await import('whatsapp-web.js');
-    const chatId = this.toChatId(to);
-    const media = new MessageMedia('application/octet-stream', documentBase64, filename);
-    const sent = await instance.client.sendMessage(chatId, media, { caption });
-    return { id: sent.id._serialized };
+    const jid = this.toJid(to);
+    const buffer = Buffer.from(documentBase64, 'base64');
+    const sent = await instance.sock.sendMessage(jid, { document: buffer, mimetype: 'application/octet-stream', fileName: filename, caption });
+    return { id: sent?.key?.id || '' };
   }
 
   getStatus(channelId: string) {
     const instance = this.clients.get(channelId);
     if (!instance) return 'disconnected';
-    const state = (instance.client as any).info?.wid ? 'connected' : 'connecting';
-    return state;
+    return instance.sock.ws?.isOpen ? 'connected' : 'connecting';
   }
 
   async logout(channelId: string) {
     const instance = this.clients.get(channelId);
     if (instance) {
-      try { await instance.client.destroy(); } catch {}
+      try { instance.sock.end(new Error('Logged out')); } catch {}
       this.clients.delete(channelId);
     }
-    releaseBrowser();
   }
 }
 

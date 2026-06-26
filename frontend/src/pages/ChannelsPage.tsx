@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { channelService } from '../services/index';
+import { channelService, whatsappUnofficialService } from '../services/index';
 import { Channel } from '../types';
 import { Button, Input, Select, Spinner } from '../components/ui/index';
 import {
   Plus, Settings as SettingsIcon, Unlink, CheckCircle2, XCircle,
-  ArrowLeft, ArrowRight, Check, Loader2, Wifi, Clock, Smartphone
+  ArrowLeft, ArrowRight, Check, Loader2, Wifi, Clock, Smartphone,
+  RefreshCw, LogOut, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useSocketStore } from '../store/socket.store';
 import WhatsAppConnectModal from '../components/WhatsAppConnectModal';
 import WhatsAppUnofficialConnectModal from '../components/WhatsAppUnofficialConnectModal';
 import TikTokConnectModal from '../components/TikTokConnectModal';
@@ -145,16 +147,57 @@ const availableIntegrations = [
 
 export default function ChannelsPage() {
   const navigate = useNavigate();
+  const socket = useSocketStore(s => s.socket);
+  const qc = useQueryClient();
   const [showModal, setShowModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showWhatsAppUnofficialModal, setShowWhatsAppUnofficialModal] = useState(false);
   const [showTikTokModal, setShowTikTokModal] = useState(false);
+  const [deviceStatus, setDeviceStatus] = useState<Record<string, string>>({});
   const { data: channels, isLoading } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
-  const qc = useQueryClient();
+
+  // Listen for real-time WA Unofficial status changes
+  useEffect(() => {
+    if (!socket) return;
+    const handler = ({ channelId, status }: { channelId: string; status: string }) => {
+      setDeviceStatus(prev => ({ ...prev, [channelId]: status }));
+    };
+    socket.on('wa-unofficial:status', handler);
+    return () => { socket.off('wa-unofficial:status', handler); };
+  }, [socket]);
+
+  // Fetch status untuk setiap WA Unofficial channel
+  const waUnofficialChannels = useCallback(async () => {
+    if (!Array.isArray(channels)) return;
+    const statusMap: Record<string, string> = {};
+    await Promise.all(
+      channels.filter(ch => ch.type === 'WHATSAPP_UNOFFICIAL').map(async ch => {
+        try {
+          const res = await whatsappUnofficialService.status(ch.id);
+          statusMap[ch.id] = res.status;
+        } catch { statusMap[ch.id] = 'disconnected'; }
+      })
+    );
+    setDeviceStatus(prev => ({ ...prev, ...statusMap }));
+  }, [channels]);
+
+  useEffect(() => { waUnofficialChannels(); }, [waUnofficialChannels]);
 
   const deleteMutation = useMutation({
     mutationFn: channelService.delete,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['channels'] }); toast.success('Platform disconnected'); },
+  });
+
+  const reconnectMutation = useMutation({
+    mutationFn: whatsappUnofficialService.reconnect,
+    onSuccess: () => toast.success('Reconnecting device...'),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Reconnect failed'),
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: whatsappUnofficialService.logout,
+    onSuccess: () => toast.success('Device logged out'),
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Logout failed'),
   });
 
   return (
@@ -211,7 +254,11 @@ export default function ChannelsPage() {
                           <p className="text-xs text-gray-500 capitalize">{ch.type.toLowerCase()}</p>
                         </div>
                       </div>
-                      <span className={`status-dot ${ch.isActive ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
+                      {ch.type === 'WHATSAPP_UNOFFICIAL' ? (
+                        <span className={`status-dot ${deviceStatus[ch.id] === 'connected' ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
+                      ) : (
+                        <span className={`status-dot ${ch.isActive ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
+                      )}
                     </div>
 
                     {ch.type === 'TIKTOK' && ch.metadata ? (
@@ -244,23 +291,57 @@ export default function ChannelsPage() {
                     </div>
 
                     <div className="flex gap-2 pt-3 border-t border-gray-100">
-                      <button
-                        onClick={() => {
-                          if (ch.type === 'TIKTOK') {
-                            navigate(`/channels/tiktok/${ch.id}`);
-                          }
-                        }}
-                        className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all"
-                      >
-                        <SettingsIcon className="w-4 h-4 inline mr-1.5" />
-                        Manage
-                      </button>
-                      <button
-                        onClick={() => deleteMutation.mutate(ch.id)}
-                        className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-400 hover:text-danger hover:bg-red-50 transition-all"
-                      >
-                        <Unlink className="w-4 h-4" />
-                      </button>
+                      {ch.type === 'WHATSAPP_UNOFFICIAL' ? (
+                        <>
+                          <button
+                            onClick={() => reconnectMutation.mutate(ch.id)}
+                            disabled={reconnectMutation.isPending}
+                            className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all disabled:opacity-50"
+                          >
+                            <RefreshCw className="w-4 h-4 inline mr-1" />
+                            Reconnect
+                          </button>
+                          <button
+                            onClick={() => logoutMutation.mutate(ch.id)}
+                            disabled={logoutMutation.isPending}
+                            className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-500 hover:text-orange-600 hover:bg-orange-50 transition-all disabled:opacity-50"
+                            title="Logout"
+                          >
+                            <LogOut className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Delete this WhatsApp device?')) {
+                                deleteMutation.mutate(ch.id);
+                              }
+                            }}
+                            className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-400 hover:text-danger hover:bg-red-50 transition-all"
+                            title="Delete device"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => {
+                              if (ch.type === 'TIKTOK') {
+                                navigate(`/channels/tiktok/${ch.id}`);
+                              }
+                            }}
+                            className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all"
+                          >
+                            <SettingsIcon className="w-4 h-4 inline mr-1.5" />
+                            Manage
+                          </button>
+                          <button
+                            onClick={() => deleteMutation.mutate(ch.id)}
+                            className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-400 hover:text-danger hover:bg-red-50 transition-all"
+                          >
+                            <Unlink className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );
@@ -281,7 +362,7 @@ export default function ChannelsPage() {
                   className="glass-card rounded-xl p-4 cursor-pointer"
                   style={{ animationDelay: `${i * 60}ms` }}
                   onClick={() => {
-                    if (alreadyConnected) return;
+                    if (alreadyConnected && p.id !== 'WHATSAPP_UNOFFICIAL') return;
                     if (p.id === 'WHATSAPP') setShowWhatsAppModal(true);
                     else if (p.id === 'WHATSAPP_UNOFFICIAL') setShowWhatsAppUnofficialModal(true);
                     else if (p.id === 'TIKTOK') setShowTikTokModal(true);
@@ -298,13 +379,13 @@ export default function ChannelsPage() {
                     </div>
                   </div>
                   <p className="text-xs text-gray-500 leading-relaxed mb-3">{p.desc}</p>
-                  {alreadyConnected ? (
+                  {alreadyConnected && p.id !== 'WHATSAPP_UNOFFICIAL' ? (
                     <span className="inline-flex items-center gap-1 text-xs text-success font-medium">
                       <CheckCircle2 className="w-3.5 h-3.5" /> Connected
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-xs font-medium hover:text-primary-dark transition-colors" style={{ color: '#18a6fc' }}>
-                      <Plus className="w-3.5 h-3.5" /> Connect
+                      <Plus className="w-3.5 h-3.5" /> {p.id === 'WHATSAPP_UNOFFICIAL' && alreadyConnected ? 'Add Device' : 'Connect'}
                     </span>
                   )}
                 </div>

@@ -44,7 +44,7 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
           <Avatar name={conv.contact.name} size="sm" />
           <div>
             <p className="font-semibold text-gray-900 text-sm">{conv.contact.name}</p>
-            <p className="text-xs text-gray-400">{(conv.contact as any).metadata?.whatsappId || conv.contact.phone} · {conv.channel.name}</p>
+            <p className="text-xs text-gray-400 font-mono">{((conv.contact as any).metadata?.whatsappId as string || conv.contact.phone || '').replace(/@(c\.us|s\.whatsapp\.net|lid|g\.us|broadcast)$/, '')} · {conv.channel.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">

@@ -73,7 +73,17 @@ export class ChannelService {
   }
 
   async delete(companyId: string, channelId: string) {
-    await this.findById(companyId, channelId);
+    const channel = await this.findById(companyId, channelId);
+    if (channel.type === 'WHATSAPP_UNOFFICIAL') {
+      const { whatsAppUnofficialService } = await import('./whatsapp-unofficial.service');
+      await whatsAppUnofficialService.logout(channelId);
+    }
+    // Hapus data terkait dulu biar ga kena FK constraint
+    await prisma.conversationLabel.deleteMany({ where: { conversation: { channelId } } });
+    await prisma.assignment.deleteMany({ where: { conversation: { channelId } } });
+    await prisma.message.deleteMany({ where: { conversation: { channelId } } });
+    await prisma.conversation.deleteMany({ where: { channelId } });
+    await prisma.post.deleteMany({ where: { channelId } });
     await prisma.channel.delete({ where: { id: channelId } });
   }
 }

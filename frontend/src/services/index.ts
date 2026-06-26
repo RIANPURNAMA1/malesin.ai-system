@@ -53,6 +53,12 @@ export const postService = {
   publishNow: (id: string) => api.post<ApiResponse<{ id: string; permalink: string }>>(`/posts/${id}/publish`).then(r => r.data.data),
 };
 
+export const whatsappUnofficialService = {
+  status: (channelId: string) => api.get<ApiResponse<{ status: string }>>(`/whatsapp-unofficial/${channelId}/status`).then(r => r.data.data),
+  reconnect: (channelId: string) => api.post(`/whatsapp-unofficial/${channelId}/reconnect`),
+  logout: (channelId: string) => api.post(`/whatsapp-unofficial/${channelId}/logout`),
+};
+
 export const analyticsService = {
   overview: () => api.get<ApiResponse<AnalyticsOverview>>('/analytics/overview').then(r => r.data.data),
   agents: () => api.get('/analytics/agents').then(r => r.data.data),

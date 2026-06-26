@@ -63,13 +63,16 @@ export default function ConversationList({ onSelect, selectedId }: Props) {
 
 function ConversationItem({ conversation: c, isActive, onClick }: { conversation: Conversation; isActive: boolean; onClick: () => void }) {
   const unread = c._count?.messages || 0;
+  const displayPhone = ((c.contact as any).metadata?.whatsappId as string || c.contact.phone || '').replace(/@(c\.us|s\.whatsapp\.net|lid|g\.us|broadcast)$/, '');
+  const hasName = /\p{L}/u.test(c.contact.name) && c.contact.name !== displayPhone;
+
   return (
     <div onClick={onClick} className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 ${
       isActive ? 'border-l-2' : 'hover:bg-gray-50'
     }`}
     style={isActive ? { background: 'rgba(24, 166, 252, 0.05)', borderLeftColor: '#18a6fc' } : undefined}>
       <div className="relative flex-shrink-0 mt-0.5">
-        <Avatar name={c.contact.name} size="md" />
+        <Avatar name={hasName ? c.contact.name : displayPhone} size="md" />
         {c.channel.type === 'WHATSAPP' && (
           <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-success rounded-full flex items-center justify-center">
             <MessageCircle className="w-2.5 h-2.5 text-white" />
@@ -78,11 +81,16 @@ function ConversationItem({ conversation: c, isActive, onClick }: { conversation
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-0.5">
-          <span className="text-sm font-medium text-gray-900 truncate">{c.contact.name}</span>
+          <span className="text-sm font-medium text-gray-900 truncate">{hasName ? c.contact.name : displayPhone}</span>
           <span className="text-xs text-gray-400 flex-shrink-0 ml-1">
             {c.lastMessageAt ? formatDistanceToNow(new Date(c.lastMessageAt), { addSuffix: false }) : ''}
           </span>
         </div>
+        {hasName && (
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className="text-[11px] text-gray-400 font-mono truncate">{displayPhone}</span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <p className="text-xs text-gray-500 truncate">{c.lastMessage || 'No messages yet'}</p>
           {unread > 0 && <span className="ml-1 flex-shrink-0 w-5 h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center font-medium">{unread > 9 ? '9+' : unread}</span>}

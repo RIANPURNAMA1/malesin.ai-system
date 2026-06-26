@@ -3,6 +3,7 @@ import { authenticate, authorize } from '../../middlewares/auth.middleware';
 import { AuthRequest } from '../../types/express.d';
 import { whatsAppUnofficialService } from './whatsapp-unofficial.service';
 import { success } from '../../utils/response';
+import logger from '../../utils/logger';
 
 const router = Router();
 
@@ -26,11 +27,9 @@ router.post('/init', async (req: AuthRequest, res: Response, next: NextFunction)
       type: 'WHATSAPP_UNOFFICIAL',
     });
 
-    whatsAppUnofficialService.initialize(channel.id, companyId, userId).catch(err => {
-      console.error('WhatsApp Unofficial init error:', err);
-    });
+    const { qr } = await whatsAppUnofficialService.initQR(channel.id, companyId, userId);
 
-    success(res, channel, 'WhatsApp Unofficial channel created', 201);
+    success(res, { channel, qr }, 'WhatsApp Unofficial channel created', 201);
   } catch (err) { next(err); }
 });
 
@@ -48,11 +47,9 @@ router.post('/:channelId/reconnect', async (req: AuthRequest, res: Response, nex
     const userId = req.user!.userId;
 
     await whatsAppUnofficialService.logout(channelId);
-    whatsAppUnofficialService.initialize(channelId, companyId, userId).catch(err => {
-      console.error('WhatsApp Unofficial reconnect error:', err);
-    });
+    const { qr } = await whatsAppUnofficialService.initQR(channelId, companyId, userId);
 
-    success(res, null, 'Reconnecting...');
+    success(res, { qr }, 'Reconnecting...');
   } catch (err) { next(err); }
 });
 
