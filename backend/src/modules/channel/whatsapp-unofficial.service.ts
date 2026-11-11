@@ -42,10 +42,13 @@ const conversationService = new ConversationService();
 const AUTH_DIR = './wa_auth_unofficial';
 const QR_TIMEOUT = 60000;
 
+type WaConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+
 interface ClientInstance {
   sock: WASocket;
   channelId: string;
   companyId: string;
+  status: WaConnectionStatus;
 }
 
 function isLidJid(jid: string | null | undefined): boolean {
@@ -212,7 +215,8 @@ class WhatsAppUnofficialService {
         markOnlineOnConnect: true,
       });
 
-      this.clients.set(channelId, { sock, channelId, companyId });
+      const instance: ClientInstance = { sock, channelId, companyId, status: 'connecting' };
+      this.clients.set(channelId, instance);
 
       sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr, isNewLogin } = update;
@@ -234,6 +238,7 @@ class WhatsAppUnofficialService {
 
         if (connection === 'open') {
           clearTimeout(timeout);
+          instance.status = 'connected';
           io.to(`user:${userId}`).emit('wa-unofficial:ready', { channelId });
           io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'connected' });
           logger.info(`WhatsApp Unofficial ready: ${channelId}`);
@@ -254,8 +259,12 @@ class WhatsAppUnofficialService {
           const isRestartRequired = statusCode === DisconnectReason.restartRequired;
 
           if (!isRestartRequired) {
+            instance.status = 'disconnected';
             this.clients.delete(channelId);
             io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
+          } else {
+            // Pairing berhasil (515) / server minta restart: masih proses menyambung.
+            instance.status = 'connecting';
           }
 
           if (statusCode === DisconnectReason.loggedOut) {
@@ -545,10 +554,13 @@ class WhatsAppUnofficialService {
     return { id: sent?.key?.id || '' };
   }
 
-  getStatus(channelId: string) {
+  getStatus(channelId: string): WaConnectionStatus {
     const instance = this.clients.get(channelId);
     if (!instance) return 'disconnected';
-    return instance.sock.ws?.isOpen ? 'connected' : 'connecting';
+    // Jangan pakai sock.ws.isOpen: saat pairing (QR belum di-scan) WebSocket ke
+    // server WhatsApp sudah terbuka, jadi statusnya keliru "connected" dan QR
+    // langsung hilang. Pakai state dari event connection.update.
+    return instance.status;
   }
 
   async logout(channelId: string) {
