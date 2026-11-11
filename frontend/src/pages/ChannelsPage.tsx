@@ -138,7 +138,7 @@ const availableIntegrations = [
   { id: 'MESSENGER', name: 'Messenger', desc: 'Connect Facebook Messenger inbox', icon: MessengerIcon, color: '#0099FF', popular: true },
   { id: 'WEBSITE', name: 'Web Live Chat', desc: 'Embed a live chat widget on your website', icon: GlobeIcon, color: '#0EA5E9', popular: true },
   { id: 'WHATSAPP', name: 'WhatsApp Business', desc: 'Send and receive messages via WhatsApp Business API', icon: WhatsAppIcon, color: '#22C55E', popular: true },
-  { id: 'WHATSAPP_UNOFFICIAL', name: 'WhatsApp Unofficial', desc: 'Connect your WhatsApp via QR code (whatsapp-web.js)', icon: SmartphoneWA, color: '#25D366', popular: true },
+  { id: 'WHATSAPP_UNOFFICIAL', name: 'WhatsApp Unofficial', desc: 'Connect your WhatsApp via QR code (Baileys)', icon: SmartphoneWA, color: '#25D366', popular: true },
   { id: 'INSTAGRAM', name: 'Instagram', desc: 'Manage Instagram direct messages', icon: InstagramIcon, color: '#E4405F', popular: true },
   { id: 'GMAIL', name: 'Gmail', desc: 'Forward Gmail inquiries to your inbox', icon: GmailIcon, color: '#EA4335', popular: false },
   { id: 'EMAIL', name: 'Other Email', desc: 'Forward email inquiries via SMTP', icon: MailIcon, color: '#F59E0B', popular: false },

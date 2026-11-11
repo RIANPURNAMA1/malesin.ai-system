@@ -32,6 +32,11 @@ class ContactService {
   }
 
   async upsertByPhone(companyId: string, phone: string, data: { name?: string; sourceChannel?: string }) {
+    // Jangan pernah buat kontak dengan phone kosong/LID: unique key
+    // companyId_phone akan menyimpan nilai sampah.
+    if (!phone || phone.includes('@lid')) {
+      throw createError('Valid phone number is required', 400);
+    }
     return prisma.contact.upsert({
       where: { companyId_phone: { companyId, phone } },
       create: { companyId, phone, name: data.name || phone, sourceChannel: data.sourceChannel },

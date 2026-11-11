@@ -23,6 +23,14 @@ api.interceptors.response.use(
         const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
         localStorage.setItem('accessToken', data.data.accessToken);
         localStorage.setItem('refreshToken', data.data.refreshToken);
+        // Sinkronkan ke store, kalau tidak socket.io tetap memakai token lama
+        // yang sudah expired sehingga event realtime (mis. wa-unofficial:ready)
+        // tidak pernah diterima.
+        const { useAuthStore } = await import('../store/auth.store');
+        useAuthStore.setState({
+          accessToken: data.data.accessToken,
+          refreshToken: data.data.refreshToken,
+        });
         original.headers.Authorization = `Bearer ${data.data.accessToken}`;
         return api(original);
       } catch {

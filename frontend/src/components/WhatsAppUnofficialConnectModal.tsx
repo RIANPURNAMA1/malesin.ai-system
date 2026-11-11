@@ -37,14 +37,51 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
       }
     };
 
+    // QR di-refresh Baileys tiap ~20 detik; tanpa ini QR yang tampil jadi kedaluwarsa
+    const onQr = (data: { channelId: string; qr: string }) => {
+      if (data.channelId === channelIdRef.current) {
+        setQrCode(data.qr);
+      }
+    };
+
     socket.on('wa-unofficial:ready', onReady);
     socket.on('wa-unofficial:error', onError);
+    socket.on('wa-unofficial:qr', onQr);
 
     return () => {
       socket.off('wa-unofficial:ready', onReady);
       socket.off('wa-unofficial:error', onError);
+      socket.off('wa-unofficial:qr', onQr);
     };
   }, [socket, qc]);
+
+  // Fallback REST: kalau event socket terlewat (socket putus / token expired),
+  // modal tetap tahu kapan WhatsApp sudah benar-benar connected.
+  useEffect(() => {
+    if (step !== 'qr' || !channelId) return;
+    let cancelled = false;
+
+    const check = async () => {
+      try {
+        const res = await api.get(`/whatsapp-unofficial/${channelId}/status`);
+        const status = res.data?.data?.status;
+        if (!cancelled && status === 'connected') {
+          setStep('connected');
+          qc.invalidateQueries({ queryKey: ['channels'] });
+          toast.success('WhatsApp Unofficial berhasil terhubung!');
+        }
+      } catch {
+        /* diamkan, coba lagi di interval berikutnya */
+      }
+    };
+
+    const timer = setInterval(check, 2000);
+    void check();
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [step, channelId, qc]);
 
   const initMutation = useMutation({
     mutationFn: async () => {
@@ -61,8 +98,10 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
         setStep('qr');
         toast.success('Scan QR code dengan WhatsApp Anda!');
       } else {
-        setErrorMsg('QR code tidak diterima dari server');
-        setStep('error');
+        // Session sudah ada dan langsung login tanpa QR
+        setStep('connected');
+        qc.invalidateQueries({ queryKey: ['channels'] });
+        toast.success('WhatsApp Unofficial berhasil terhubung!');
       }
     },
     onError: (err: any) => {
@@ -82,7 +121,8 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
   };
 
   const handleClose = () => {
-    if (channelId) {
+    // Jangan putuskan sesi kalau sudah connected — cukup tutup modal.
+    if (channelId && step !== 'connected') {
       api.post(`/whatsapp-unofficial/${channelId}/logout`).catch(() => {});
     }
     onClose();
@@ -104,7 +144,7 @@ export default function WhatsAppUnofficialConnectModal({ onClose }: Props) {
             <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
               <Smartphone className="w-5 h-5 text-amber-600 flex-shrink-0" />
               <p className="text-xs text-amber-700">
-                Menggunakan <strong>whatsapp-web.js</strong>. Scan QR code dengan WhatsApp Anda untuk menghubungkan.
+                Menggunakan <strong>Baileys</strong>. Scan QR code dengan WhatsApp Anda untuk menghubungkan.
               </p>
             </div>
 

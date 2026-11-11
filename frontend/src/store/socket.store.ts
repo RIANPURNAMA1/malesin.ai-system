@@ -19,7 +19,14 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
   connect: (token) => {
     const existing = get().socket;
-    if (existing?.connected) return;
+    // Pakai ulang socket yang ada: cukup perbarui token & sambungkan lagi.
+    // (Sebelumnya socket lama ditinggal begitu saja saat token refresh,
+    // sehingga listener realtime berhenti bekerja.)
+    if (existing) {
+      existing.auth = { token };
+      if (!existing.connected) existing.connect();
+      return;
+    }
 
     const apiUrl = import.meta.env.VITE_API_URL;
     const isRelative = !apiUrl || apiUrl.startsWith('/');
