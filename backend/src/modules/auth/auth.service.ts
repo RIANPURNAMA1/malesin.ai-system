@@ -49,7 +49,7 @@ export class AuthService {
 
     await prisma.user.update({ where: { id: user.id }, data: { refreshToken } });
 
-    return { accessToken, refreshToken, user: { ...user, password: undefined, refreshToken: undefined }, company };
+    return { accessToken, refreshToken, user: { ...user, password: undefined, refreshToken: undefined, facebookAccessToken: undefined }, company };
   }
 
   async login(dto: LoginDto, companySlug?: string) {
@@ -74,8 +74,9 @@ export class AuthService {
 
     await prisma.user.update({ where: { id: user.id }, data: { refreshToken, lastLoginAt: new Date() } });
 
-    const { password, refreshToken: _rt, ...safeUser } = user;
-    void password;
+    // Jangan kirim kredensial / token ke frontend.
+    const { password, refreshToken: _rt, facebookAccessToken: _fat, ...safeUser } = user;
+    void password; void _fat;
     return { accessToken, refreshToken, user: safeUser };
   }
 
@@ -101,8 +102,8 @@ export class AuthService {
     // jadi field sensitif dibuang manual.
     const user = await prisma.user.findUnique({ where: { id: userId }, include: { company: true } });
     if (!user) throw createError('User not found', 404);
-    const { password, refreshToken, ...safeUser } = user;
-    void password; void refreshToken;
+    const { password, refreshToken, facebookAccessToken, ...safeUser } = user;
+    void password; void refreshToken; void facebookAccessToken;
     return safeUser;
   }
 

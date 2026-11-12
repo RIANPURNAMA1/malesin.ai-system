@@ -74,7 +74,7 @@ export class InstagramPublishService {
       let attempts = 0;
       while (attempts < 10) {
         await new Promise(r => setTimeout(r, 3000));
-        const status = await this.getMediaStatus(igAccountId, token, containerId);
+        const status = await this.getMediaStatus(igAccountId, token, containerId!);
         if (status.status_code === 'FINISHED') break;
         if (status.status_code === 'ERROR') throw createError('Media processing failed', 500);
         attempts++;

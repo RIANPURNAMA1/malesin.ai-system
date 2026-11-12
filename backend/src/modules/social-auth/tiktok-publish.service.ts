@@ -157,7 +157,7 @@ export class TikTokPublishService {
       const resp = await axios.get(mediaUrl, { responseType: 'arraybuffer' });
       fileBuffer = Buffer.from(resp.data);
       const contentType = resp.headers['content-type'] || 'video/mp4';
-      mimeType = contentType;
+      mimeType = String(contentType).split(';')[0];
       const urlPath = new URL(mediaUrl).pathname;
       fileName = urlPath.split('/').pop() || `video_${Date.now()}.mp4`;
     } else if (mediaUrl.startsWith('/') || mediaUrl.startsWith('.')) {

@@ -1,5 +1,8 @@
-import { Queue, Worker } from 'bullmq';
-import redis, { redisAvailable } from '../config/redis';
+import { Queue, Worker, ConnectionOptions } from 'bullmq';
+import redisClient, { redisAvailable } from '../config/redis';
+
+// ioredis milik bullmq beda versi dengan ioredis aplikasi (tipe saja, runtime kompatibel).
+const redis = redisClient as unknown as ConnectionOptions;
 import logger from '../utils/logger';
 import prisma from '../config/database';
 import { InstagramPublishService } from '../modules/publish/instagram-publish.service';
@@ -24,7 +27,7 @@ export const scheduleWorker = redisAvailable
         } else {
           result = await igPublish.publishPost(companyId, postId);
         }
-        logger.info(`Post ${postId} published: ${result.publish_id || result.id}`);
+        logger.info(`Post ${postId} published: ${'publish_id' in result ? result.publish_id : result.id}`);
         return result;
       } catch (err: any) {
         await prisma.post.update({
@@ -36,8 +39,6 @@ export const scheduleWorker = redisAvailable
       }
     }, {
       connection: redis,
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 5000 },
     })
   : null;
 

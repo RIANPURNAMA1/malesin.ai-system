@@ -50,6 +50,10 @@ model User {
   avatar       String?
   isActive     Boolean  @default(true)
   refreshToken String?  @db.Text
+  /// Login Facebook (OAuth)
+  facebookId          String?  @unique
+  facebookAccessToken String?  @db.Text
+  authProvider        String?
   lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

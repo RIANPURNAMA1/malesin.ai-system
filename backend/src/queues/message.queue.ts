@@ -1,5 +1,8 @@
-import { Queue, Worker } from 'bullmq';
-import redis, { redisAvailable } from '../config/redis';
+import { Queue, Worker, ConnectionOptions } from 'bullmq';
+import redisClient, { redisAvailable } from '../config/redis';
+
+// ioredis milik bullmq beda versi dengan ioredis aplikasi (tipe saja, runtime kompatibel).
+const redis = redisClient as unknown as ConnectionOptions;
 import logger from '../utils/logger';
 import { WhatsAppService } from '../modules/channel/whatsapp.service';
 
@@ -24,8 +27,6 @@ export const messageWorker = redisAvailable
       if (type === 'TEMPLATE') return whatsappService.sendTemplateMessage(channelId, to, templateName, languageCode);
     }, {
       connection: redis,
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 2000 },
     })
   : null;
 

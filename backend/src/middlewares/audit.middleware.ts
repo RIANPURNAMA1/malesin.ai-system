@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import { Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { AuthRequest } from '../types/express.d';
 
@@ -14,7 +15,7 @@ export function auditLog(action: string, entity: string) {
               action,
               entity,
               entityId: req.params.id,
-              newData: req.body as Record<string, unknown>,
+              newData: req.body as Prisma.InputJsonValue,
               ipAddress: req.ip,
               userAgent: req.get('user-agent'),
             },
