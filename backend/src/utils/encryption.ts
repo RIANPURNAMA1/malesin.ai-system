@@ -1,7 +1,17 @@
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
-const KEY = Buffer.from(process.env.ENCRYPTION_KEY || '0'.repeat(64), 'hex');
+const RAW_KEY = process.env.ENCRYPTION_KEY || '';
+
+// ENCRYPTION_KEY idealnya berupa 64 karakter hex (32 byte).
+// Kalau nilainya bukan hex valid (mis. placeholder), turunkan 32-byte key
+// memakai scrypt supaya enkripsi tetap berfungsi dan tidak error saat runtime.
+function resolveKey(): Buffer {
+  if (/^[0-9a-fA-F]{64}$/.test(RAW_KEY)) return Buffer.from(RAW_KEY, 'hex');
+  return crypto.scryptSync(RAW_KEY || 'malesin-ai-default-key', 'malesin-ai-encryption-salt', 32);
+}
+
+const KEY = resolveKey();
 
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(16);

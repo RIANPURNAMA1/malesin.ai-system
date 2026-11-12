@@ -10,7 +10,7 @@ import { useSocketStore } from '../../store/socket.store';
 interface Props { conversationId: string; onOpenDetail: () => void; onBack?: () => void; }
 
 export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Props) {
-  const { messages } = useInboxStore();
+  const { messages, typing } = useInboxStore();
   const { socket } = useSocketStore();
   const { isLoading: loadingMsgs } = useMessages(conversationId);
   const { data: conversation } = useConversation(conversationId);
@@ -19,9 +19,10 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
   const [text, setText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
   const convMessages = messages[conversationId] || [];
+  const isTyping = !!typing[conversationId];
 
   useEffect(() => { socket?.emit('conversation:join', conversationId); return () => { socket?.emit('conversation:leave', conversationId); }; }, [conversationId, socket]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [convMessages.length]);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [convMessages.length, isTyping]);
 
   const handleSend = async () => {
     if (!text.trim()) return; const content = text.trim(); setText('');
@@ -58,6 +59,7 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
         {loadingMsgs ? <div className="flex justify-center mt-10"><Spinner /></div>
           : convMessages.length === 0 ? <div className="text-center text-gray-400 text-sm mt-16">No messages yet</div>
           : convMessages.map((msg, i) => <MessageBubble key={msg.id} message={msg} showDate={i === 0 || !isSameDay(convMessages[i - 1].sentAt, msg.sentAt)} />)}
+        {isTyping && <TypingBubble />}
         <div ref={bottomRef} />
       </div>
 
@@ -85,6 +87,18 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
 }
 
 function isSameDay(a: string, b: string) { return format(new Date(a), 'yyyy-MM-dd') === format(new Date(b), 'yyyy-MM-dd'); }
+
+function TypingBubble() {
+  return (
+    <div className="flex justify-start mb-1">
+      <div className="bg-white border border-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-1">
+        {[0, 150, 300].map((delay) => (
+          <span key={delay} className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function MessageBubble({ message: m, showDate }: { message: Message; showDate: boolean }) {
   const isOut = m.direction === 'OUTBOUND';

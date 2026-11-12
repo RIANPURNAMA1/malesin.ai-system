@@ -26,6 +26,9 @@ model Company {
   labels        Label[]
   auditLogs     AuditLog[]
   posts         Post[]
+  aiAgents      AiAgent[]
+  aiKnowledge   AiKnowledge[]
+  aiMedia       AiMedia[]
 
   @@index([slug])
   @@map("companies")
@@ -279,6 +282,80 @@ model AuditLog {
   @@index([entity, entityId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+model AiAgent {
+  id           String     @id @default(uuid())
+  companyId    String
+  name         String
+  description  String?    @db.Text
+  provider     AiProvider
+  model        String
+  apiKey       String     @db.Text
+  systemPrompt String?    @db.Text
+  temperature  Float      @default(0.7)
+  maxTokens    Int        @default(1024)
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  knowledge AiKnowledge[]
+  media     AiMedia[]
+
+  @@index([companyId])
+  @@map("ai_agents")
+}
+
+model AiKnowledge {
+  id        String   @id @default(uuid())
+  companyId String
+  aiAgentId String
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  aiAgent AiAgent @relation(fields: [aiAgentId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([aiAgentId])
+  @@map("ai_knowledge")
+}
+
+enum AiProvider {
+  OPENAI
+  ANTHROPIC
+  GOOGLE
+  GROQ
+}
+
+model AiMedia {
+  id          String         @id @default(uuid())
+  companyId   String
+  aiAgentId   String
+  title       String
+  mediaUrl    String         @db.Text
+  caption     String?        @db.Text
+  description String?        @db.Text
+  keywords    String?        @db.Text
+  trigger     AiMediaTrigger @default(KEYWORD)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  aiAgent AiAgent @relation(fields: [aiAgentId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([aiAgentId])
+  @@map("ai_media")
+}
+
+enum AiMediaTrigger {
+  KEYWORD
+  AI
 }
 
 enum UserRole {

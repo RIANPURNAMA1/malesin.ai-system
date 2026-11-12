@@ -36,7 +36,7 @@ export class ChannelService {
       select: {
         id: true, name: true, type: true, isActive: true,
         wabaId: true, phoneNumberId: true, verifyToken: true,
-        metadata: true, createdAt: true, updatedAt: true,
+        metadata: true, sessionData: true, createdAt: true, updatedAt: true,
         _count: { select: { conversations: true } },
       },
       orderBy: { createdAt: 'desc' },
@@ -76,7 +76,7 @@ export class ChannelService {
     const channel = await this.findById(companyId, channelId);
     if (channel.type === 'WHATSAPP_UNOFFICIAL') {
       const { whatsAppUnofficialService } = await import('./whatsapp-unofficial.service');
-      await whatsAppUnofficialService.logout(channelId);
+      await whatsAppUnofficialService.removeSession(channelId);
     }
     // Hapus data terkait dulu biar ga kena FK constraint
     await prisma.conversationLabel.deleteMany({ where: { conversation: { channelId } } });

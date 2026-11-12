@@ -63,6 +63,7 @@ export default function ConversationList({ onSelect, selectedId }: Props) {
 
 function ConversationItem({ conversation: c, isActive, onClick }: { conversation: Conversation; isActive: boolean; onClick: () => void }) {
   const unread = c._count?.messages || 0;
+  const isTyping = useInboxStore((s) => s.typing[c.id]);
   const displayPhone = ((c.contact as any).metadata?.whatsappId as string || c.contact.phone || '').replace(/@(c\.us|s\.whatsapp\.net|lid|g\.us|broadcast)$/, '');
   const hasName = /\p{L}/u.test(c.contact.name) && c.contact.name !== displayPhone;
 
@@ -92,7 +93,9 @@ function ConversationItem({ conversation: c, isActive, onClick }: { conversation
           </div>
         )}
         <div className="flex items-center justify-between">
-          <p className="text-xs text-gray-500 truncate">{c.lastMessage || 'No messages yet'}</p>
+          <p className={`text-xs truncate ${isTyping ? 'text-primary font-medium' : 'text-gray-500'}`}>
+            {isTyping ? 'typing…' : (c.lastMessage || 'No messages yet')}
+          </p>
           {unread > 0 && <span className="ml-1 flex-shrink-0 w-5 h-5 bg-primary text-white text-xs rounded-full flex items-center justify-center font-medium">{unread > 9 ? '9+' : unread}</span>}
         </div>
         {c.labels.length > 0 && (

@@ -5,6 +5,7 @@ interface InboxState {
   conversations: Conversation[];
   activeConversationId: string | null;
   messages: Record<string, Message[]>;
+  typing: Record<string, boolean>;
   filters: {
     status: ConversationStatus | '';
     channelId: string;
@@ -16,6 +17,7 @@ interface InboxState {
   setActiveConversation: (id: string | null) => void;
   setMessages: (conversationId: string, msgs: Message[]) => void;
   addMessage: (conversationId: string, msg: Message) => void;
+  setTyping: (conversationId: string, isTyping: boolean) => void;
   setFilters: (filters: Partial<InboxState['filters']>) => void;
 }
 
@@ -23,6 +25,7 @@ export const useInboxStore = create<InboxState>((set) => ({
   conversations: [],
   activeConversationId: null,
   messages: {},
+  typing: {},
   filters: { status: 'OPEN', channelId: '', search: '', labelId: '' },
 
   setConversations: (convs) => set({ conversations: convs }),
@@ -49,6 +52,9 @@ export const useInboxStore = create<InboxState>((set) => ({
         [conversationId]: [...(s.messages[conversationId] || []), msg],
       },
     })),
+
+  setTyping: (conversationId, isTyping) =>
+    set((s) => ({ typing: { ...s.typing, [conversationId]: isTyping } })),
 
   setFilters: (filters) => set((s) => ({ filters: { ...s.filters, ...filters } })),
 }));

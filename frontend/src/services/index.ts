@@ -1,5 +1,5 @@
 import api from './api';
-import { Post, Message, Channel, Contact, Label, AnalyticsOverview, PaginatedResponse, ApiResponse } from '../types';
+import { Post, Message, Channel, Contact, Label, AnalyticsOverview, PaginatedResponse, ApiResponse, AiAgent, AiProvider, AiProviderInfo, AiKnowledge, AiMedia, AiMediaTrigger, AiTestResponseResult } from '../types';
 
 export const messageService = {
   list: (conversationId: string, page = 1, limit = 50) =>
@@ -54,7 +54,12 @@ export const postService = {
 };
 
 export const whatsappUnofficialService = {
-  status: (channelId: string) => api.get<ApiResponse<{ status: string }>>(`/whatsapp-unofficial/${channelId}/status`).then(r => r.data.data),
+  status: (channelId: string) =>
+    api
+      .get<ApiResponse<{ status: string; session?: { phone?: string | null; status?: string } | null }>>(
+        `/whatsapp-unofficial/${channelId}/status`
+      )
+      .then(r => r.data.data),
   reconnect: (channelId: string) => api.post(`/whatsapp-unofficial/${channelId}/reconnect`),
   logout: (channelId: string) => api.post(`/whatsapp-unofficial/${channelId}/logout`),
 };
@@ -63,4 +68,77 @@ export const analyticsService = {
   overview: () => api.get<ApiResponse<AnalyticsOverview>>('/analytics/overview').then(r => r.data.data),
   agents: () => api.get('/analytics/agents').then(r => r.data.data),
   channels: () => api.get('/analytics/channels').then(r => r.data.data),
+};
+
+export interface AiAgentPayload {
+  name: string;
+  description?: string;
+  provider: AiProvider;
+  model: string;
+  apiKey?: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  isActive?: boolean;
+}
+
+export interface AiTestResponsePayload {
+  agentId?: string;
+  provider?: AiProvider;
+  model?: string;
+  apiKey?: string;
+  systemPrompt?: string;
+  temperature?: number;
+  maxTokens?: number;
+  message: string;
+  useKnowledge?: boolean;
+  useMedia?: boolean;
+  knowledge?: { title: string; content: string }[];
+}
+
+export const aiAgentService = {
+  list: () => api.get<ApiResponse<AiAgent[]>>('/ai-agents').then(r => r.data.data),
+  get: (id: string) => api.get<ApiResponse<AiAgent>>(`/ai-agents/${id}`).then(r => r.data.data),
+  providers: () => api.get<ApiResponse<AiProviderInfo[]>>('/ai-agents/providers').then(r => r.data.data),
+  models: (provider: AiProvider, apiKey?: string, agentId?: string) =>
+    api.post<ApiResponse<string[]>>('/ai-agents/models', { provider, apiKey, agentId }).then(r => r.data.data),
+  testConnection: (provider: AiProvider, apiKey?: string, agentId?: string) =>
+    api.post<ApiResponse<{ ok: boolean; modelCount: number; models: string[] }>>('/ai-agents/test-connection', { provider, apiKey, agentId }).then(r => r.data.data),
+  testResponse: (payload: AiTestResponsePayload) =>
+    api.post<ApiResponse<AiTestResponseResult>>('/ai-agents/test-response', payload).then(r => r.data.data),
+  create: (payload: AiAgentPayload) =>
+    api.post<ApiResponse<AiAgent>>('/ai-agents', payload).then(r => r.data.data),
+  update: (id: string, payload: Partial<AiAgentPayload>) =>
+    api.put<ApiResponse<AiAgent>>(`/ai-agents/${id}`, payload).then(r => r.data.data),
+  delete: (id: string) => api.delete(`/ai-agents/${id}`),
+};
+
+export const knowledgeService = {
+  list: (agentId: string) => api.get<ApiResponse<AiKnowledge[]>>(`/ai-agents/${agentId}/knowledge`).then(r => r.data.data),
+  create: (agentId: string, payload: { title: string; content: string }) =>
+    api.post<ApiResponse<AiKnowledge>>(`/ai-agents/${agentId}/knowledge`, payload).then(r => r.data.data),
+  update: (agentId: string, id: string, payload: { title?: string; content?: string }) =>
+    api.put<ApiResponse<AiKnowledge>>(`/ai-agents/${agentId}/knowledge/${id}`, payload).then(r => r.data.data),
+  delete: (agentId: string, id: string) => api.delete(`/ai-agents/${agentId}/knowledge/${id}`),
+};
+
+export interface AiMediaPayload {
+  title: string;
+  mediaUrl: string;
+  caption?: string;
+  description?: string;
+  keywords?: string;
+  trigger?: AiMediaTrigger;
+  isActive?: boolean;
+}
+
+export const aiMediaService = {
+  list: (agentId: string) =>
+    api.get<ApiResponse<AiMedia[]>>(`/ai-agents/${agentId}/media`).then(r => r.data.data),
+  create: (agentId: string, payload: AiMediaPayload) =>
+    api.post<ApiResponse<AiMedia>>(`/ai-agents/${agentId}/media`, payload).then(r => r.data.data),
+  update: (agentId: string, mediaId: string, payload: Partial<AiMediaPayload>) =>
+    api.put<ApiResponse<AiMedia>>(`/ai-agents/${agentId}/media/${mediaId}`, payload).then(r => r.data.data),
+  delete: (agentId: string, mediaId: string) =>
+    api.delete(`/ai-agents/${agentId}/media/${mediaId}`),
 };

@@ -14,6 +14,7 @@ import { TikTokAuthController } from './modules/social-auth/tiktok-auth.controll
 import { errorHandler, notFound } from './middlewares/error.middleware';
 import { initSocket } from './sockets/socket.server';
 import { startScheduleChecker } from './queues/schedule.queue';
+import { whatsAppUnofficialService } from './modules/channel/whatsapp-unofficial.service';
 import logger from './utils/logger';
 
 const app = express();
@@ -63,6 +64,13 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
   startScheduleChecker();
+
+  // Pulihkan sesi WhatsApp Unofficial yang kredensialnya masih tersimpan di
+  // disk, supaya device yang sudah terhubung tidak tampil disconnected
+  // setelah backend restart.
+  void whatsAppUnofficialService
+    .restoreAll()
+    .catch((err) => logger.error('Gagal memulihkan sesi WhatsApp Unofficial', err));
 });
 
 // Graceful shutdown

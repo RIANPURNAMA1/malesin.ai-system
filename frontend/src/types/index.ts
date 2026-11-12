@@ -39,6 +39,7 @@ export interface Channel {
   phoneNumberId?: string;
   verifyToken?: string;
   metadata?: Record<string, any>;
+  sessionData?: string;
   createdAt: string;
   _count?: { conversations: number };
 }
@@ -165,4 +166,74 @@ export interface Notification {
   title: string;
   body: string;
   conversationId: string;
+}
+
+export type AiProvider = 'OPENAI' | 'ANTHROPIC' | 'GOOGLE' | 'GROQ';
+
+export interface AiAgent {
+  id: string;
+  companyId: string;
+  name: string;
+  description?: string | null;
+  provider: AiProvider;
+  model: string;
+  systemPrompt?: string | null;
+  temperature: number;
+  maxTokens: number;
+  isActive: boolean;
+  hasApiKey: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { knowledge: number };
+}
+
+export interface AiKnowledge {
+  id: string;
+  companyId: string;
+  aiAgentId: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type AiMediaTrigger = 'KEYWORD' | 'AI';
+
+export interface AiMedia {
+  id: string;
+  companyId: string;
+  aiAgentId: string;
+  title: string;
+  mediaUrl: string;
+  caption?: string | null;
+  description?: string | null;
+  keywords?: string | null;
+  trigger: AiMediaTrigger;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AiMediaAttachment {
+  id: string;
+  title: string;
+  mediaUrl: string;
+  caption?: string | null;
+  type: 'IMAGE';
+}
+
+export interface AiTestResponseResult {
+  reply: string;
+  usedKnowledge: string[];
+  usedMedia: string[];
+  attachments: AiMediaAttachment[];
+  usage?: { inputTokens?: number; outputTokens?: number };
+}
+
+export interface AiProviderInfo {
+  id: AiProvider;
+  name: string;
+  description: string;
+  keyPlaceholder: string;
+  models: string[];
 }

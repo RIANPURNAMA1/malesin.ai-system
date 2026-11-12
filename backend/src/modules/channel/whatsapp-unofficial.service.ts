@@ -10,7 +10,7 @@ import { contactService } from '../contact/contact.routes';
 import { ConversationService } from '../conversation/conversation.service';
 import logger from '../../utils/logger';
 import { Boom } from '@hapi/boom';
-import { rmSync } from 'fs';
+import { existsSync, rmSync } from 'fs';
 import path from 'path';
 
 type BaileysModule = typeof import('@whiskeysockets/baileys');
@@ -39,14 +39,36 @@ async function resolveWAVersion(baileys: BaileysModule): Promise<WAVersion | und
 }
 
 const conversationService = new ConversationService();
-const AUTH_DIR = './wa_auth_unofficial';
+// Sesi Baileys disimpan di disk (bukan di database), relatif terhadap cwd backend.
+const AUTH_DIR = path.resolve(process.cwd(), 'wa_auth_unofficial');
 const QR_TIMEOUT = 60000;
 
 interface ClientInstance {
   sock: WASocket;
   channelId: string;
   companyId: string;
+  userId: string;
+  /** True kalau socket ditutup sengaja (logout / reconnect manual) -> jangan auto-reconnect. */
+  manualClose: boolean;
+  reconnectAttempts: number;
 }
+
+interface PersistedSession {
+  status?: string;
+  jid?: string | null;
+  phone?: string | null;
+  connectedAt?: string;
+  updatedAt?: string;
+}
+
+// proto.WebMessageInfo.Status: 0=ERROR, 2=SERVER_ACK, 3=DELIVERY_ACK, 4=READ, 5=PLAYED
+const WA_STATUS_MAP: Record<number, 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'> = {
+  0: 'FAILED',
+  2: 'SENT',
+  3: 'DELIVERED',
+  4: 'READ',
+  5: 'READ',
+};
 
 function isLidJid(jid: string | null | undefined): boolean {
   return !!jid && jid.endsWith('@lid');
@@ -150,23 +172,154 @@ function getMediaMessage(msg: WAMessage): proto.Message.IImageMessage | proto.Me
   return null;
 }
 
+/** Pesan dianggap baru kalau dikirim dalam beberapa menit terakhir. */
+function isRecentMessage(msg: WAMessage, maxAgeMs = 5 * 60 * 1000): boolean {
+  const timestamp = Number(msg.messageTimestamp || 0) * 1000;
+  return timestamp > 0 && Date.now() - timestamp <= maxAgeMs;
+}
+
 class WhatsAppUnofficialService {
   private clients: Map<string, ClientInstance> = new Map();
+  private reconnectTimers: Map<string, NodeJS.Timeout> = new Map();
+  /** Channel yang sedang dalam proses connect/restore, supaya tidak dobel socket. */
+  private connecting: Set<string> = new Set();
+  /** Chat (JID) yang sudah di-subscribe presence-nya per channel. */
+  private presenceSubscribed: Map<string, Set<string>> = new Map();
+
+  private authDir(channelId: string) {
+    return path.join(AUTH_DIR, channelId);
+  }
+
+  /** Sesi dianggap ada kalau file creds Baileys tersedia di disk. */
+  hasSession(channelId: string) {
+    return existsSync(path.join(this.authDir(channelId), 'creds.json'));
+  }
+
+  private clearReconnect(channelId: string) {
+    const timer = this.reconnectTimers.get(channelId);
+    if (timer) {
+      clearTimeout(timer);
+      this.reconnectTimers.delete(channelId);
+    }
+  }
+
+  private scheduleReconnect(
+    channelId: string,
+    companyId: string,
+    userId: string,
+    attempt: number,
+    immediate = false
+  ) {
+    if (this.reconnectTimers.has(channelId)) return;
+    const delay = immediate ? 500 : Math.min(30000, 2000 * 2 ** Math.min(attempt, 4));
+    logger.info(`Menjadwalkan reconnect WhatsApp ${channelId} dalam ${delay}ms (percobaan ${attempt})`);
+
+    const timer = setTimeout(() => {
+      this.reconnectTimers.delete(channelId);
+      const current = this.clients.get(channelId);
+      if (current?.sock?.ws?.isOpen) return;
+
+      void this.start(channelId, companyId, userId, true, false).catch((err) => {
+        logger.warn(`Reconnect WhatsApp gagal (percobaan ${attempt}): ${channelId}`, err);
+        this.scheduleReconnect(channelId, companyId, userId, attempt + 1);
+      });
+    }, delay);
+
+    this.reconnectTimers.set(channelId, timer);
+  }
+
+  /** Simpan status/identitas device ke kolom Channel.sessionData (bukan kredensial). */
+  private async persistSession(channelId: string, data: Partial<PersistedSession>) {
+    try {
+      const channel = await prisma.channel.findUnique({
+        where: { id: channelId },
+        select: { sessionData: true },
+      });
+
+      let previous: PersistedSession = {};
+      if (channel?.sessionData) {
+        try { previous = JSON.parse(channel.sessionData) as PersistedSession; } catch { /* ignore */ }
+      }
+
+      await prisma.channel.update({
+        where: { id: channelId },
+        data: {
+          sessionData: JSON.stringify({
+            ...previous,
+            ...data,
+            updatedAt: new Date().toISOString(),
+          }),
+        },
+      });
+    } catch (err) {
+      logger.warn(`Gagal menyimpan sessionData channel ${channelId}`, err);
+    }
+  }
 
   async initQR(channelId: string, companyId: string, userId: string): Promise<{ qr: string | null }> {
+    this.clearReconnect(channelId);
     const existing = this.clients.get(channelId);
     if (existing) {
+      existing.manualClose = true;
       try { existing.sock.end(new Error('Reconnecting')); } catch {}
       this.clients.delete(channelId);
     }
-    return this.start(channelId, companyId, userId);
+    return this.start(channelId, companyId, userId, false, true);
+  }
+
+  /**
+   * Pulihkan sesi yang sudah ada tanpa menampilkan QR. Dipakai saat server
+   * restart atau saat halaman channel dibuka lagi, supaya device yang sudah
+   * terhubung tidak tampil "kosong/disconnected".
+   */
+  async ensureConnected(channelId: string, companyId: string, userId: string): Promise<void> {
+    if (this.clients.has(channelId) || this.reconnectTimers.has(channelId) || this.connecting.has(channelId)) {
+      return;
+    }
+    if (!this.hasSession(channelId)) return;
+
+    this.connecting.add(channelId);
+    try {
+      await this.start(channelId, companyId, userId, true, false);
+    } catch (err) {
+      logger.warn(`Gagal memulihkan sesi WhatsApp ${channelId}`, err);
+    } finally {
+      this.connecting.delete(channelId);
+    }
+  }
+
+  /** Restore semua sesi WhatsApp Unofficial yang kredensialnya masih ada di disk. */
+  async restoreAll(): Promise<void> {
+    const channels = await prisma.channel.findMany({
+      where: { type: 'WHATSAPP_UNOFFICIAL' },
+      select: { id: true, companyId: true },
+    });
+
+    const withSession = channels.filter((ch) => this.hasSession(ch.id));
+    if (!withSession.length) {
+      logger.info('Tidak ada sesi WhatsApp Unofficial yang perlu dipulihkan');
+      return;
+    }
+
+    logger.info(`Memulihkan ${withSession.length} sesi WhatsApp Unofficial...`);
+
+    await Promise.allSettled(
+      withSession.map(async (ch) => {
+        const owner = await prisma.user.findFirst({
+          where: { companyId: ch.companyId, role: 'OWNER', isActive: true },
+          select: { id: true },
+        });
+        await this.ensureConnected(ch.id, ch.companyId, owner?.id || '');
+      })
+    );
   }
 
   private async start(
     channelId: string,
     companyId: string,
     userId: string,
-    isReconnect = false
+    isReconnect = false,
+    allowQR = true
   ): Promise<{ qr: string | null }> {
     const channel = await prisma.channel.findUnique({ where: { id: channelId } });
     if (!channel) throw new Error('Channel not found');
@@ -176,7 +329,7 @@ class WhatsAppUnofficialService {
     const baileys = await loadBaileys();
     const { makeWASocket, useMultiFileAuthState, Browsers, DisconnectReason } = baileys;
     const version = await resolveWAVersion(baileys);
-    const authDir = path.join(AUTH_DIR, channelId);
+    const authDir = this.authDir(channelId);
     const { state, saveCreds } = await useMultiFileAuthState(authDir);
 
     let qrReject: ((err: Error) => void) | null = null;
@@ -212,7 +365,15 @@ class WhatsAppUnofficialService {
         markOnlineOnConnect: true,
       });
 
-      this.clients.set(channelId, { sock, channelId, companyId });
+      const instance: ClientInstance = {
+        sock,
+        channelId,
+        companyId,
+        userId,
+        manualClose: false,
+        reconnectAttempts: isReconnect ? 1 : 0,
+      };
+      this.clients.set(channelId, instance);
 
       sock.ev.on('connection.update', (update) => {
         const { connection, lastDisconnect, qr, isNewLogin } = update;
@@ -223,6 +384,21 @@ class WhatsAppUnofficialService {
 
         if (qr) {
           clearTimeout(timeout);
+
+          // Saat restore/reconnect otomatis kita tidak ingin menunggu scan QR.
+          // Kalau creds ternyata tidak valid, tandai disconnected dan berhenti;
+          // user bisa pairing ulang lewat tombol Reconnect.
+          if (!allowQR) {
+            logger.warn(`Sesi WhatsApp ${channelId} tidak valid, perlu pairing ulang`);
+            instance.manualClose = true;
+            try { sock.end(new Error('Pairing required')); } catch {}
+            if (this.clients.get(channelId) === instance) this.clients.delete(channelId);
+            void this.persistSession(channelId, { status: 'disconnected' });
+            io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
+            settle({ qr: null });
+            return;
+          }
+
           qrDisplayed = true;
           QRCode.toDataURL(qr, { width: 300, margin: 2 })
             .then((qrDataUrl) => {
@@ -234,15 +410,28 @@ class WhatsAppUnofficialService {
 
         if (connection === 'open') {
           clearTimeout(timeout);
+          instance.reconnectAttempts = 0;
+
+          const jid = sock.user?.id || null;
+          const phone = jid ? jidToPhone(jid) : null;
+          void this.persistSession(channelId, {
+            status: 'connected',
+            jid,
+            phone,
+            connectedAt: new Date().toISOString(),
+          });
+
           io.to(`user:${userId}`).emit('wa-unofficial:ready', { channelId });
           io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'connected' });
-          logger.info(`WhatsApp Unofficial ready: ${channelId}`);
+          logger.info(`WhatsApp Unofficial ready: ${channelId} (${phone || 'unknown'})`);
           settle({ qr: null }); // sudah login pakai creds lama, tidak perlu QR
           void this.syncContacts(channelId, companyId);
         }
 
         if (connection === 'close') {
           clearTimeout(timeout);
+          // Socket baru saat reconnect -> presence harus di-subscribe ulang.
+          this.presenceSubscribed.delete(channelId);
           const boomErr = lastDisconnect?.error as Boom | undefined;
           const statusCode = boomErr?.output?.statusCode;
           const errMsg = boomErr?.message || 'Connection closed';
@@ -252,31 +441,54 @@ class WhatsAppUnofficialService {
           // Tanpa reconnect di sini, sesi berhenti tepat setelah scan QR dan
           // tidak pernah sampai status "open"/terhubung.
           const isRestartRequired = statusCode === DisconnectReason.restartRequired;
+          const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-          if (!isRestartRequired) {
-            this.clients.delete(channelId);
-            io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
-          }
-
-          if (statusCode === DisconnectReason.loggedOut) {
-            // Sesi tidak valid lagi: buang creds supaya scan berikutnya bersih.
-            try { rmSync(authDir, { recursive: true, force: true }); } catch {}
-          }
-
-          if (isRestartRequired) {
-            logger.info(`Pairing OK, reconnect otomatis: ${channelId}`);
-            void this.start(channelId, companyId, userId, true).catch((err) =>
-              logger.error('Auto reconnect setelah pairing gagal', err)
-            );
+          // Kalau socket ini sudah digantikan socket baru (mis. reconnect manual),
+          // abaikan event close-nya supaya tidak menimpa status "connected".
+          if (this.clients.get(channelId) !== instance && !isLoggedOut) {
+            logger.info(`Abaikan close dari socket lama: ${channelId}`);
             settle({ qr: null });
             return;
           }
 
+          if (isLoggedOut) {
+            // Sesi tidak valid lagi: buang creds supaya scan berikutnya bersih.
+            instance.manualClose = true;
+            try { rmSync(authDir, { recursive: true, force: true }); } catch {}
+          }
+
+          if (this.clients.get(channelId) === instance) this.clients.delete(channelId);
+
+          if (isRestartRequired) {
+            logger.info(`Pairing OK, reconnect otomatis: ${channelId}`);
+            settle({ qr: null });
+            this.scheduleReconnect(channelId, companyId, userId, 0, true);
+            return;
+          }
+
+          if (isLoggedOut || instance.manualClose) {
+            void this.persistSession(channelId, { status: 'disconnected' });
+            io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
+            if (!isReconnect && qrReject && !qrDisplayed) {
+              qrReject(new Error(errMsg));
+            } else {
+              settle({ qr: null });
+            }
+            return;
+          }
+
+          // Putus koneksi tak terduga (jaringan, HP offline, dll):
+          // jangan biarkan device mati permanen, coba reconnect dengan backoff.
           if (!isReconnect && qrReject && !qrDisplayed) {
             qrReject(new Error(errMsg));
           } else if (qrDisplayed) {
             io.to(`user:${userId}`).emit('wa-unofficial:error', { channelId, error: errMsg });
           }
+
+          void this.persistSession(channelId, { status: 'disconnected' });
+          io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
+          settle({ qr: null });
+          this.scheduleReconnect(channelId, companyId, userId, instance.reconnectAttempts + 1);
         }
       });
 
@@ -291,13 +503,42 @@ class WhatsAppUnofficialService {
         );
       });
 
-      sock.ev.on('messages.upsert', async ({ messages }) => {
+      sock.ev.on('messages.upsert', async ({ messages, type }) => {
         for (const msg of messages) {
-          if (msg.key?.fromMe) continue;
-          if (!msg.key?.remoteJid) continue;
-          if (msg.key.remoteJid.endsWith('@g.us')) continue;
-          if (msg.key.remoteJid.endsWith('@broadcast')) continue;
-          await this.handleIncomingMessage(channelId, companyId, sock, msg);
+          const jid = msg.key?.remoteJid;
+          if (!jid) continue;
+          if (jid.endsWith('@g.us') || jid.endsWith('@broadcast')) continue;
+
+          // 'notify' = pesan baru realtime (termasuk yang dikirim dari HP).
+          // 'append' = history sync / pesan tertunda; hanya ambil yang masih
+          // baru supaya aktivitas dari HP tetap masuk tanpa membanjiri inbox
+          // dengan riwayat lama.
+          if (type !== 'notify' && !isRecentMessage(msg)) continue;
+
+          await this.handleMessage(channelId, companyId, sock, msg);
+        }
+      });
+
+      // Status "sedang mengetik" dari customer diteruskan ke dashboard secara
+      // realtime, jadi aktivitas di HP ikut terlihat di sini.
+      sock.ev.on('presence.update', ({ id, presences }) => {
+        for (const presence of Object.values(presences)) {
+          void this.handlePresence(companyId, channelId, id, presence.lastKnownPresence).catch((err) =>
+            logger.warn(`Gagal memproses presence ${id}`, err)
+          );
+        }
+      });
+
+      // Centang pesan keluar (terkirim/dibaca) juga berlaku untuk pesan yang
+      // dikirim dari HP, bukan hanya dari aplikasi ini.
+      sock.ev.on('messages.update', async (updates) => {
+        for (const { key, update } of updates) {
+          if (!key?.fromMe || !key.id) continue;
+          const status = WA_STATUS_MAP[update.status as number];
+          if (!status) continue;
+          await this.syncMessageStatus(companyId, key.id, status).catch((err) =>
+            logger.warn(`Gagal update status pesan ${key.id}`, err)
+          );
         }
       });
     });
@@ -343,11 +584,33 @@ class WhatsAppUnofficialService {
     }
   }
 
-  async handleIncomingMessage(channelId: string, companyId: string, sock: WASocket, msg: WAMessage) {
+  /**
+   * Menangani pesan baru dua arah secara realtime:
+   * - INBOUND  : pesan masuk dari customer.
+   * - OUTBOUND : pesan yang dikirim dari HP / device lain milik akun ini,
+   *              supaya aktivitas di HP ikut tampil di inbox.
+   * Pesan yang dikirim dari aplikasi ini tidak di-echo Baileys
+   * (emitOwnEvents: false), jadi tidak akan duplikat.
+   */
+  async handleMessage(channelId: string, companyId: string, sock: WASocket, msg: WAMessage) {
     try {
+      const wamid = msg.key?.id;
+      if (!wamid) return;
+
+      // Idempoten: pesan yang sama bisa dikirim ulang saat reconnect.
+      const duplicated = await prisma.message.findUnique({
+        where: { wamid },
+        select: { id: true },
+      });
+      if (duplicated) return;
+
+      const isOutbound = !!msg.key?.fromMe;
       const rawJid = msg.key!.remoteJid!;
-      const pushName = msg.pushName || '';
       const { phone, lid } = await resolveSenderJid(sock, msg);
+      // Pastikan WhatsApp mengirim status typing untuk chat ini.
+      void this.subscribePresence(channelId, sock, rawJid);
+      // pushName pada pesan fromMe adalah nama akun kita sendiri, bukan customer.
+      const pushName = isOutbound ? '' : msg.pushName || '';
       const senderName = pushName || phone || 'Unknown';
 
       // whatsappId selalu PN kalau diketahui supaya balasan memakai nomor asli.
@@ -392,9 +655,9 @@ class WhatsAppUnofficialService {
           where: { id: existingContact.id },
           data: {
             ...(nextPhone !== undefined ? { phone: nextPhone } : {}),
-            name: senderName,
+            ...(!isOutbound && senderName !== 'Unknown' ? { name: senderName } : {}),
             metadata: { ...existingMeta, ...metadata } as any,
-            totalMessages: { increment: 1 },
+            ...(isOutbound ? {} : { totalMessages: { increment: 1 } }),
           },
         });
       } else if (phone) {
@@ -416,7 +679,7 @@ class WhatsAppUnofficialService {
             name: senderName,
             sourceChannel: 'WHATSAPP_UNOFFICIAL',
             metadata: metadata as any,
-            totalMessages: 1,
+            totalMessages: isOutbound ? 0 : 1,
           },
         });
       }
@@ -430,6 +693,9 @@ class WhatsAppUnofficialService {
 
       const baileysType = getMessageType(msg);
       const mediaPart = getMediaMessage(msg);
+
+      // Reaction / protocol (hapus, edit, read receipt) bukan pesan chat.
+      if (!baileysType && !content) return;
 
       if (mediaPart && baileysType) {
         try {
@@ -450,15 +716,22 @@ class WhatsAppUnofficialService {
 
       if (baileysType === 'sticker') type = 'TEXT';
 
+      const sentAt = msg.messageTimestamp
+        ? new Date(Number(msg.messageTimestamp) * 1000)
+        : new Date();
+
       const message = await prisma.message.create({
         data: {
           conversationId: conversation.id,
-          direction: 'INBOUND',
+          direction: isOutbound ? 'OUTBOUND' : 'INBOUND',
           type: type as any,
           content,
           mediaUrl,
           fileName,
-          status: 'DELIVERED',
+          wamid,
+          status: isOutbound ? 'SENT' : 'DELIVERED',
+          isRead: isOutbound,
+          sentAt: Number.isNaN(sentAt.getTime()) ? new Date() : sentAt,
         },
         include: { attachments: true },
       });
@@ -467,9 +740,8 @@ class WhatsAppUnofficialService {
         where: { id: conversation.id },
         data: {
           lastMessage: content || fileName || 'Media',
-          lastMessageAt: new Date(),
-          isRead: false,
-          status: 'OPEN',
+          lastMessageAt: message.sentAt,
+          ...(isOutbound ? {} : { isRead: false, status: 'OPEN' }),
         },
       });
 
@@ -487,15 +759,105 @@ class WhatsAppUnofficialService {
 
       io.to(`company:${companyId}`).emit('message:new', { conversationId: conversation.id, message });
       io.to(`company:${companyId}`).emit('conversation:updated', fullConversation);
-      io.to(`company:${companyId}`).emit('notification', {
-        type: 'NEW_MESSAGE',
-        title: `New message from ${senderName || phone}`,
-        body: content || 'Media message',
-        conversationId: conversation.id,
-      });
+      if (!isOutbound) {
+        io.to(`company:${companyId}`).emit('notification', {
+          type: 'NEW_MESSAGE',
+          title: `New message from ${senderName || phone}`,
+          body: content || 'Media message',
+          conversationId: conversation.id,
+        });
+      }
     } catch (err) {
-      logger.error('WhatsApp Unofficial incoming message error', err);
+      logger.error('WhatsApp Unofficial message handling error', err);
     }
+  }
+
+  /**
+   * Teruskan indikator "sedang mengetik/merekam" dari customer ke dashboard
+   * secara realtime supaya aktivitas di HP ikut terlihat.
+   */
+  private async handlePresence(
+    companyId: string,
+    channelId: string,
+    jid: string,
+    presence: string | undefined
+  ) {
+    if (!jid || jid.endsWith('@g.us') || jid.endsWith('@broadcast')) return;
+
+    const phone = jidToPhone(jid);
+    const contact = await prisma.contact.findFirst({
+      where: {
+        companyId,
+        OR: [
+          { metadata: { path: '$.remoteJid', equals: jid } },
+          ...(phone
+            ? [
+                { metadata: { path: '$.whatsappId', equals: `${phone}@s.whatsapp.net` } },
+                { phone },
+              ]
+            : []),
+        ],
+      },
+      select: { id: true },
+    });
+    if (!contact) return;
+
+    const conversation = await prisma.conversation.findFirst({
+      where: { companyId, channelId, contactId: contact.id },
+      select: { id: true },
+    });
+    if (!conversation) return;
+
+    getIO().to(`company:${companyId}`).emit('message:typing', {
+      conversationId: conversation.id,
+      isTyping: presence === 'composing' || presence === 'recording',
+    });
+  }
+
+  /** Subscribe presence sekali per chat supaya WhatsApp mengirim event typing. */
+  private async subscribePresence(channelId: string, sock: WASocket, jid: string) {
+    let subscribed = this.presenceSubscribed.get(channelId);
+    if (!subscribed) {
+      subscribed = new Set();
+      this.presenceSubscribed.set(channelId, subscribed);
+    }
+    if (subscribed.has(jid)) return;
+
+    subscribed.add(jid);
+    try {
+      await sock.presenceSubscribe(jid);
+    } catch (err) {
+      subscribed.delete(jid);
+      logger.warn(`Gagal subscribe presence ${jid}`, err);
+    }
+  }
+
+  /** Update status pesan keluar (centang) dan beri tahu frontend secara realtime. */
+  private async syncMessageStatus(
+    companyId: string,
+    wamid: string,
+    status: 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'
+  ) {
+    const existing = await prisma.message.findUnique({
+      where: { wamid },
+      select: { id: true, conversationId: true, status: true },
+    });
+    if (!existing || existing.status === status) return;
+
+    await prisma.message.update({
+      where: { id: existing.id },
+      data: {
+        status,
+        ...(status === 'DELIVERED' ? { deliveredAt: new Date() } : {}),
+        ...(status === 'READ' ? { readAt: new Date() } : {}),
+      },
+    });
+
+    getIO().to(`company:${companyId}`).emit('message:status', {
+      conversationId: existing.conversationId,
+      messageId: existing.id,
+      status,
+    });
   }
 
   private async syncContacts(channelId: string, companyId: string) {
@@ -546,17 +908,35 @@ class WhatsAppUnofficialService {
   }
 
   getStatus(channelId: string) {
+    if (this.connecting.has(channelId)) return 'connecting';
     const instance = this.clients.get(channelId);
     if (!instance) return 'disconnected';
     return instance.sock.ws?.isOpen ? 'connected' : 'connecting';
   }
 
   async logout(channelId: string) {
+    this.clearReconnect(channelId);
+    this.presenceSubscribed.delete(channelId);
     const instance = this.clients.get(channelId);
     if (instance) {
+      instance.manualClose = true;
       try { instance.sock.end(new Error('Logged out')); } catch {}
       this.clients.delete(channelId);
     }
+    await this.persistSession(channelId, { status: 'disconnected' });
+  }
+
+  /** Hapus sesi device (dipakai saat channel dihapus) termasuk kredensial di disk. */
+  async removeSession(channelId: string) {
+    this.clearReconnect(channelId);
+    this.presenceSubscribed.delete(channelId);
+    const instance = this.clients.get(channelId);
+    if (instance) {
+      instance.manualClose = true;
+      try { instance.sock.end(new Error('Session removed')); } catch {}
+      this.clients.delete(channelId);
+    }
+    try { rmSync(this.authDir(channelId), { recursive: true, force: true }); } catch {}
   }
 }
 

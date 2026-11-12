@@ -134,6 +134,11 @@ const platformMeta: Record<string, { icon: React.ComponentType<{ size?: string }
 function getPlatformIcon(type: string) { return platformMeta[type]?.icon || WhatsAppIcon; }
 function getPlatformColor(type: string) { return platformMeta[type]?.color || '#18a6fc'; }
 
+function getWaSession(ch: Channel): { status?: string; phone?: string | null; jid?: string | null } | null {
+  if (!ch.sessionData) return null;
+  try { return JSON.parse(ch.sessionData); } catch { return null; }
+}
+
 const availableIntegrations = [
   { id: 'MESSENGER', name: 'Messenger', desc: 'Connect Facebook Messenger inbox', icon: MessengerIcon, color: '#0099FF', popular: true },
   { id: 'WEBSITE', name: 'Web Live Chat', desc: 'Embed a live chat widget on your website', icon: GlobeIcon, color: '#0EA5E9', popular: true },
@@ -181,7 +186,13 @@ export default function ChannelsPage() {
     setDeviceStatus(prev => ({ ...prev, ...statusMap }));
   }, [channels]);
 
-  useEffect(() => { waUnofficialChannels(); }, [waUnofficialChannels]);
+  useEffect(() => {
+    waUnofficialChannels();
+    // Polling ringan sebagai fallback kalau event socket terlewat
+    // (mis. setelah login ulang / socket reconnect).
+    const timer = setInterval(waUnofficialChannels, 15000);
+    return () => clearInterval(timer);
+  }, [waUnofficialChannels]);
 
   const deleteMutation = useMutation({
     mutationFn: channelService.delete,
@@ -242,6 +253,8 @@ export default function ChannelsPage() {
               {channels.map((ch: Channel, i: number) => {
                 const Icon = getPlatformIcon(ch.type);
                 const color = getPlatformColor(ch.type);
+                const waSession = getWaSession(ch);
+                const waStatus = deviceStatus[ch.id] || waSession?.status;
                 return (
                   <div key={ch.id} className="glass-card rounded-2xl p-5" style={{ animationDelay: `${i * 80}ms` }}>
                     <div className="flex items-start justify-between mb-4">
@@ -255,11 +268,18 @@ export default function ChannelsPage() {
                         </div>
                       </div>
                       {ch.type === 'WHATSAPP_UNOFFICIAL' ? (
-                        <span className={`status-dot ${deviceStatus[ch.id] === 'connected' ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
+                        <span className={`status-dot ${waStatus === 'connected' ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
                       ) : (
                         <span className={`status-dot ${ch.isActive ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
                       )}
                     </div>
+
+                    {ch.type === 'WHATSAPP_UNOFFICIAL' && waSession?.phone ? (
+                      <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">
+                        <Smartphone className="w-3.5 h-3.5" />
+                        <span className="truncate">{waSession.phone}</span>
+                      </div>
+                    ) : null}
 
                     {ch.type === 'TIKTOK' && ch.metadata ? (
                       <div className="flex items-center gap-3 text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">

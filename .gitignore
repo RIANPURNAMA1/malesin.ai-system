@@ -11,6 +11,10 @@ frontend/dist/
 *.log
 npm-debug.log*
 
+# WhatsApp session credentials (JANGAN pernah di-commit)
+wa_auth_unofficial/
+.wwebjs_cache/
+
 # OS
 .DS_Store
 Thumbs.db

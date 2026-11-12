@@ -12,6 +12,7 @@ import socialAuthRoutes from '../modules/social-auth/social-auth.routes';
 import tiktokAuthRoutes from '../modules/social-auth/tiktok-auth.routes';
 import tiktokPublishRoutes from '../modules/social-auth/tiktok-publish.routes';
 import whatsAppUnofficialRoutes from '../modules/channel/whatsapp-unofficial.routes';
+import aiAgentRoutes from '../modules/ai-agent/ai-agent.routes';
 import { handleWebhookGet, handleWebhookPost } from '../modules/webhook/webhook.handler';
 import { handleInstagramWebhookGet, handleInstagramWebhookPost } from '../modules/webhook/instagram.handler';
 
@@ -25,6 +26,7 @@ router.use('/conversations', conversationRoutes);
 router.use('/conversations/:conversationId/messages', messageRoutes);
 router.use('/contacts', contactRoutes);
 router.use('/labels', labelRoutes);
+router.use('/ai-agents', aiAgentRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/users', userRoutes);
 router.use('/posts', postRoutes);
