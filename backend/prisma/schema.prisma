@@ -16,19 +16,25 @@ model Company {
   website     String?
   logoUrl     String?
   isActive    Boolean  @default(true)
+  /// Pengaturan company, mis. { sla: { firstResponseMinutes, resolutionHours } }
+  settings    Json?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  users         User[]
-  channels      Channel[]
-  contacts      Contact[]
-  conversations Conversation[]
-  labels        Label[]
-  auditLogs     AuditLog[]
-  posts         Post[]
-  aiAgents      AiAgent[]
-  aiKnowledge   AiKnowledge[]
-  aiMedia       AiMedia[]
+  users            User[]
+  channels         Channel[]
+  contacts         Contact[]
+  conversations    Conversation[]
+  labels           Label[]
+  auditLogs        AuditLog[]
+  posts            Post[]
+  aiAgents         AiAgent[]
+  aiKnowledge      AiKnowledge[]
+  aiKnowledgeMedia AiKnowledgeMedia[]
+  aiMedia          AiMedia[]
+  broadcasts       Broadcast[]
+  pipelines        Pipeline[]
+  deals            Deal[]
 
   @@index([slug])
   @@map("companies")
@@ -52,6 +58,7 @@ model User {
   assignments   Assignment[]
   sentMessages  Message[]      @relation("SentMessages")
   auditLogs     AuditLog[]
+  ownedDeals    Deal[]         @relation("DealOwner")
 
   @@unique([companyId, email])
   @@index([companyId])
@@ -78,6 +85,7 @@ model Channel {
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   conversations Conversation[]
   posts         Post[]
+  broadcasts    Broadcast[]
 
   @@index([companyId])
   @@index([type])
@@ -100,6 +108,8 @@ model Contact {
 
   company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
   conversations Conversation[]
+  broadcastRecipients BroadcastRecipient[]
+  deals         Deal[]
 
   @@unique([companyId, phone])
   @@index([companyId])
@@ -116,6 +126,14 @@ model Conversation {
   isRead      Boolean            @default(false)
   lastMessage String?            @db.Text
   lastMessageAt DateTime?
+  /// Balasan pertama ke pelanggan (AI / agen / HP), bukan broadcast.
+  firstResponseAt DateTime?
+  closedAt    DateTime?
+  closedById  String?
+  /// AI | HUMAN — siapa yang menangani. HUMAN menimpa AI saat manusia membalas.
+  handledBy   String?
+  /// Balasan manusia pertama (serah terima AI → agen), untuk durasi sesi AI vs agen.
+  handedToHumanAt DateTime?
   metadata    Json?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
@@ -132,6 +150,7 @@ model Conversation {
   @@index([contactId])
   @@index([status])
   @@index([lastMessageAt])
+  @@index([createdAt])
   @@map("conversations")
 }
 
@@ -293,6 +312,14 @@ model AiAgent {
   model        String
   apiKey       String     @db.Text
   systemPrompt String?    @db.Text
+  // Perilaku AI
+  welcomeMessage        String? @db.Text
+  communicationStyle    String? @db.Text
+  conversationFlow      String? @db.Text
+  communicationRules    String? @db.Text
+  /// Array JSON: [{ id, content, pipeline }]. pipeline kosong = semua pelanggan.
+  additionalInstructions Json?
+  version      Int        @default(1)
   temperature  Float      @default(0.7)
   maxTokens    Int        @default(1024)
   isActive     Boolean    @default(true)
@@ -318,10 +345,34 @@ model AiKnowledge {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   aiAgent AiAgent @relation(fields: [aiAgentId], references: [id], onDelete: Cascade)
+  media   AiKnowledgeMedia[]
 
   @@index([companyId])
   @@index([aiAgentId])
   @@map("ai_knowledge")
+}
+
+/// Gambar yang menempel pada satu entri Knowledge Base. Dipakai RAG sebagai
+/// konteks media dan dikirim AI Agent lewat channel (WhatsApp, dsb).
+model AiKnowledgeMedia {
+  id          String   @id @default(uuid())
+  companyId   String
+  knowledgeId String
+  filename    String
+  mimeType    String
+  fileSize    Int
+  storagePath String
+  publicUrl   String   @db.Text
+  altText     String?
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  company   Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  knowledge AiKnowledge @relation(fields: [knowledgeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([knowledgeId])
+  @@map("ai_knowledge_media")
 }
 
 enum AiProvider {
@@ -399,4 +450,161 @@ enum MessageStatus {
   DELIVERED
   READ
   FAILED
+}
+
+/// Campaign broadcast (Broadcast Protection & Compliance Engine).
+/// status: DRAFT | SCHEDULED | RUNNING | PAUSED | COMPLETED | CANCELLED
+model Broadcast {
+  id              String    @id @default(uuid())
+  companyId       String
+  channelId       String
+  createdById     String?
+  name            String
+  message         String    @db.Text
+  mediaUrl        String?   @db.Text
+  status          String    @default("DRAFT")
+  /// Filter audiens: { consent, labelIds, sourceChannel, activeWithinDays, includeReview }
+  audience        Json?
+  /// Proteksi: { quietStart, quietEnd, minDelaySec, maxDelaySec, dailyLimit, frequencyCapHours, autoPause, ... }
+  settings        Json?
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+  pauseReason     String?   @db.Text
+  totalRecipients Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
+  skippedCount    Int       @default(0)
+  repliedCount    Int       @default(0)
+  optOutCount     Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company    Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  channel    Channel              @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  recipients BroadcastRecipient[]
+
+  @@index([companyId])
+  @@index([status])
+  @@map("broadcasts")
+}
+
+/// status: PENDING | SENT | FAILED | SKIPPED
+model BroadcastRecipient {
+  id          String    @id @default(uuid())
+  broadcastId String
+  contactId   String
+  phone       String
+  name        String
+  status      String    @default("PENDING")
+  error       String?   @db.Text
+  attempts    Int       @default(0)
+  sentAt      DateTime?
+  repliedAt   DateTime?
+  optedOutAt  DateTime?
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([broadcastId, contactId])
+  @@index([contactId, sentAt])
+  @@index([broadcastId, status])
+  @@map("broadcast_recipients")
+}
+
+/// Pipeline CRM (papan Kanban). autoMode: AUTO | SUGGEST | MANUAL
+model Pipeline {
+  id              String   @id @default(uuid())
+  companyId       String
+  name            String
+  isDefault       Boolean  @default(false)
+  autoMode        String   @default("AUTO")
+  /// Kontak baru yang chat pertama kali otomatis dibuatkan deal di tahap awal.
+  autoCreateDeals Boolean  @default(true)
+  /// Deal tanpa aktivitas selama N hari dipindah ke tahap kalah (0 = nonaktif).
+  lostAfterDays   Int      @default(7)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  stages  PipelineStage[]
+  deals   Deal[]
+
+  @@index([companyId])
+  @@map("pipelines")
+}
+
+/// kind: OPEN | WON | LOST. autoRule: FIRST_CHAT | REPLIED | INTEREST | PAYMENT_SENT (opsional)
+model PipelineStage {
+  id         String  @id @default(uuid())
+  pipelineId String
+  name       String
+  color      String  @default("#18a6fc")
+  position   Int
+  kind       String  @default("OPEN")
+  autoRule   String?
+  /// Definisi tahap untuk AI (kapan pelanggan dianggap berada di tahap ini).
+  aiHint     String? @db.Text
+
+  pipeline Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  deals    Deal[]
+
+  @@index([pipelineId])
+  @@map("pipeline_stages")
+}
+
+/// status: OPEN | WON | LOST
+model Deal {
+  id              String    @id @default(uuid())
+  companyId       String
+  pipelineId      String
+  stageId         String
+  contactId       String
+  ownerId         String?
+  title           String
+  value           Int       @default(0)
+  status          String    @default("OPEN")
+  lostReason      String?
+  expectedCloseAt DateTime?
+  stageEnteredAt  DateTime  @default(now())
+  lastActivityAt  DateTime  @default(now())
+  wonAt           DateTime?
+  lostAt          DateTime?
+  /// Saran AI yang menunggu konfirmasi: { stageId, confidence, reason, evidence, at }
+  aiSuggestion    Json?
+  /// Dipindah manual → AI tidak memindahkan otomatis sampai waktu ini.
+  aiLockedUntil   DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  pipeline   Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  stage      PipelineStage  @relation(fields: [stageId], references: [id])
+  contact    Contact        @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  owner      User?          @relation("DealOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  activities DealActivity[]
+
+  @@index([companyId, status])
+  @@index([pipelineId, stageId])
+  @@index([contactId])
+  @@map("deals")
+}
+
+/// type: CREATED | STAGE | UPDATE | NOTE | SUGGESTION. actor: SYSTEM | AI | USER
+model DealActivity {
+  id          String   @id @default(uuid())
+  dealId      String
+  type        String
+  actor       String
+  userId      String?
+  fromStageId String?
+  toStageId   String?
+  message     String?  @db.Text
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, createdAt])
+  @@map("deal_activities")
 }

@@ -1,19 +1,24 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { channelService, whatsappUnofficialService } from '../services/index';
+import { channelService, whatsappUnofficialService, aiAgentService, userService } from '../services/index';
+import ChannelSettingsModal, { readChannelSettings, DISTRIBUTION_LABEL } from '../components/ChannelSettingsModal';
 import { Channel } from '../types';
-import { Button, Input, Select, Spinner } from '../components/ui/index';
+import { Input, Select, Spinner } from '../components/ui/index';
 import {
-  Plus, Settings as SettingsIcon, Unlink, CheckCircle2, XCircle,
-  ArrowLeft, ArrowRight, Check, Loader2, Wifi, Clock, Smartphone,
-  RefreshCw, LogOut, Trash2
+  Plus, Search, Settings as SettingsIcon, Unlink, CheckCircle2, XCircle,
+  ArrowLeft, ArrowRight, Check, Loader2, Wifi, RefreshCw, LogOut, Trash2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useSocketStore } from '../store/socket.store';
 import WhatsAppConnectModal from '../components/WhatsAppConnectModal';
 import WhatsAppUnofficialConnectModal from '../components/WhatsAppUnofficialConnectModal';
 import TikTokConnectModal from '../components/TikTokConnectModal';
+import TikTokIcon from '../components/TikTokIcon';
+
+/* ------------------------------------------------------------------ */
+/* Icons                                                               */
+/* ------------------------------------------------------------------ */
 
 function WhatsAppIcon({ size }: { size?: string }) {
   return (
@@ -52,16 +57,6 @@ function FacebookIcon({ size }: { size?: string }) {
   );
 }
 
-function TelegramIcon({ size }: { size?: string }) {
-  return (
-    <svg width={size || '24'} height={size || '24'} viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="10" fill="#26A5E4"/>
-      <path d="M16.5 7.5l-10 3.87s-.39.15-.36.41c.03.26.35.38.35.38l2.58 1.07.67 2.16s.05.22.21.22c.16 0 .22-.12.22-.12l1.18-1.06 2.46 1.82s.45.22.45-.17l1.5-7.06s.13-.55-.47-.32z" fill="#fff" opacity="0.9"/>
-      <path d="M10.5 15.5l-.5-2.5 5-3.5" stroke="#fff" strokeWidth="0.5"/>
-    </svg>
-  );
-}
-
 function GlobeIcon({ size }: { size?: string }) {
   return (
     <svg width={size || '24'} height={size || '24'} viewBox="0 0 24 24" fill="none">
@@ -77,14 +72,6 @@ function MailIcon({ size }: { size?: string }) {
     <svg width={size || '24'} height={size || '24'} viewBox="0 0 24 24" fill="none">
       <rect x="2" y="4" width="20" height="16" rx="3" stroke="#F59E0B" strokeWidth="1.5"/>
       <path d="M2 7l10 6 10-6" stroke="#F59E0B" strokeWidth="1.5"/>
-    </svg>
-  );
-}
-
-function WebhookIcon({ size }: { size?: string }) {
-  return (
-    <svg width={size || '24'} height={size || '24'} viewBox="0 0 24 24" fill="none">
-      <path d="M12 3c1.5 2.5 4 7 4 7s2.5-1 4 0c1.5 1 1.5 3.5 0 5s-4 0-4 0-2.5 4-4 5.5m0-11c-1.5 2.5-4 7-4 7s-2.5-1-4 0c-1.5 1-1.5 3.5 0 5s4 0 4 0 2.5 4 4 5.5" stroke="#18a6fc" strokeWidth="1.5" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -109,8 +96,6 @@ function GmailIcon({ size }: { size?: string }) {
   );
 }
 
-import TikTokIcon from '../components/TikTokIcon';
-
 function SmartphoneWA({ size }: { size?: string }) {
   return (
     <svg width={size || '24'} height={size || '24'} viewBox="0 0 24 24" fill="none">
@@ -122,17 +107,18 @@ function SmartphoneWA({ size }: { size?: string }) {
   );
 }
 
-const platformMeta: Record<string, { icon: React.ComponentType<{ size?: string }>; color: string }> = {
-  WHATSAPP: { icon: WhatsAppIcon, color: '#22C55E' },
-  WHATSAPP_UNOFFICIAL: { icon: SmartphoneWA, color: '#25D366' },
-  INSTAGRAM: { icon: InstagramIcon, color: '#E4405F' },
-  FACEBOOK: { icon: FacebookIcon, color: '#1877F2' },
-  MESSENGER: { icon: MessengerIcon, color: '#0099FF' },
-  TIKTOK: { icon: TikTokIcon, color: '#000000' },
+const platformIcons: Record<string, React.ComponentType<{ size?: string }>> = {
+  WHATSAPP: WhatsAppIcon,
+  WHATSAPP_UNOFFICIAL: SmartphoneWA,
+  INSTAGRAM: InstagramIcon,
+  FACEBOOK: FacebookIcon,
+  MESSENGER: MessengerIcon,
+  TIKTOK: TikTokIcon,
 };
 
-function getPlatformIcon(type: string) { return platformMeta[type]?.icon || WhatsAppIcon; }
-function getPlatformColor(type: string) { return platformMeta[type]?.color || '#18a6fc'; }
+function getPlatformIcon(type: string) {
+  return platformIcons[type] || WhatsAppIcon;
+}
 
 function getWaSession(ch: Channel): { status?: string; phone?: string | null; jid?: string | null } | null {
   if (!ch.sessionData) return null;
@@ -140,28 +126,67 @@ function getWaSession(ch: Channel): { status?: string; phone?: string | null; ji
 }
 
 const availableIntegrations = [
-  { id: 'MESSENGER', name: 'Messenger', desc: 'Connect Facebook Messenger inbox', icon: MessengerIcon, color: '#0099FF', popular: true },
-  { id: 'WEBSITE', name: 'Web Live Chat', desc: 'Embed a live chat widget on your website', icon: GlobeIcon, color: '#0EA5E9', popular: true },
-  { id: 'WHATSAPP', name: 'WhatsApp Business', desc: 'Send and receive messages via WhatsApp Business API', icon: WhatsAppIcon, color: '#22C55E', popular: true },
-  { id: 'WHATSAPP_UNOFFICIAL', name: 'WhatsApp Unofficial', desc: 'Connect your WhatsApp via QR code (Baileys)', icon: SmartphoneWA, color: '#25D366', popular: true },
-  { id: 'INSTAGRAM', name: 'Instagram', desc: 'Manage Instagram direct messages', icon: InstagramIcon, color: '#E4405F', popular: true },
-  { id: 'GMAIL', name: 'Gmail', desc: 'Forward Gmail inquiries to your inbox', icon: GmailIcon, color: '#EA4335', popular: false },
-  { id: 'EMAIL', name: 'Other Email', desc: 'Forward email inquiries via SMTP', icon: MailIcon, color: '#F59E0B', popular: false },
-  { id: 'TIKTOK', name: 'TikTok', desc: 'Connect TikTok messages to your inbox', icon: TikTokIcon, color: '#000000', popular: false },
+  { id: 'MESSENGER', name: 'Messenger', desc: 'Connect Facebook Messenger inbox', icon: MessengerIcon, popular: true },
+  { id: 'WEBSITE', name: 'Web Live Chat', desc: 'Embed a live chat widget on your website', icon: GlobeIcon, popular: true },
+  { id: 'WHATSAPP', name: 'WhatsApp Business', desc: 'Send and receive messages via WhatsApp Business API', icon: WhatsAppIcon, popular: true },
+  { id: 'WHATSAPP_UNOFFICIAL', name: 'WhatsApp Unofficial', desc: 'Connect your WhatsApp via QR code (Baileys)', icon: SmartphoneWA, popular: true },
+  { id: 'INSTAGRAM', name: 'Instagram', desc: 'Manage Instagram direct messages', icon: InstagramIcon, popular: true },
+  { id: 'GMAIL', name: 'Gmail', desc: 'Forward Gmail inquiries to your inbox', icon: GmailIcon, popular: false },
+  { id: 'EMAIL', name: 'Other Email', desc: 'Forward email inquiries via SMTP', icon: MailIcon, popular: false },
+  { id: 'TIKTOK', name: 'TikTok', desc: 'Connect TikTok messages to your inbox', icon: TikTokIcon, popular: false },
 ];
+
+function platformName(type: string) {
+  return availableIntegrations.find(p => p.id === type)?.name ?? type.charAt(0) + type.slice(1).toLowerCase();
+}
+
+/* ------------------------------------------------------------------ */
+/* Small UI helpers                                                    */
+/* ------------------------------------------------------------------ */
+
+const ICON_BTN =
+  'rounded-lg border border-gray-200 bg-white p-2 text-gray-500 transition hover:bg-gray-50 disabled:opacity-50';
+
+function Chip({ children, tone = 'default' }: { children: React.ReactNode; tone?: 'default' | 'success' }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs ${
+        tone === 'success'
+          ? 'border-green-200 bg-green-50 text-green-700'
+          : 'border-gray-200 bg-white text-gray-700'
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
 
 export default function ChannelsPage() {
   const navigate = useNavigate();
   const socket = useSocketStore(s => s.socket);
   const qc = useQueryClient();
+  const [platform, setPlatform] = useState<string>('ALL');
+  const [mode, setMode] = useState<string>('ALL');
+  const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [showWhatsAppUnofficialModal, setShowWhatsAppUnofficialModal] = useState(false);
   const [showTikTokModal, setShowTikTokModal] = useState(false);
   const [deviceStatus, setDeviceStatus] = useState<Record<string, string>>({});
-  const { data: channels, isLoading } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
+  const [settingsChannel, setSettingsChannel] = useState<Channel | null>(null);
 
-  // Listen for real-time WA Unofficial status changes
+  const { data: channels, isLoading } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
+  const { data: agentsData } = useQuery({ queryKey: ['ai-agents'], queryFn: aiAgentService.list });
+  const { data: usersData } = useQuery({ queryKey: ['users'], queryFn: userService.list });
+  const agentList = (Array.isArray(agentsData) ? agentsData : []) as { id: string; name: string }[];
+  const userList = (Array.isArray(usersData) ? usersData : []) as { id: string; name: string }[];
+  const channelList = (Array.isArray(channels) ? channels : []) as Channel[];
+
+  // Real-time WA Unofficial status
   useEffect(() => {
     if (!socket) return;
     const handler = ({ channelId, status }: { channelId: string; status: string }) => {
@@ -171,7 +196,7 @@ export default function ChannelsPage() {
     return () => { socket.off('wa-unofficial:status', handler); };
   }, [socket]);
 
-  // Fetch status untuk setiap WA Unofficial channel
+  // Fetch status tiap WA Unofficial channel
   const waUnofficialChannels = useCallback(async () => {
     if (!Array.isArray(channels)) return;
     const statusMap: Record<string, string> = {};
@@ -188,8 +213,7 @@ export default function ChannelsPage() {
 
   useEffect(() => {
     waUnofficialChannels();
-    // Polling ringan sebagai fallback kalau event socket terlewat
-    // (mis. setelah login ulang / socket reconnect).
+    // Polling ringan sebagai fallback kalau event socket terlewat.
     const timer = setInterval(waUnofficialChannels, 15000);
     return () => clearInterval(timer);
   }, [waUnofficialChannels]);
@@ -211,219 +235,257 @@ export default function ChannelsPage() {
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Logout failed'),
   });
 
+  // Hitungan per platform untuk sidebar
+  const platformCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    channelList.forEach(ch => map.set(ch.type, (map.get(ch.type) ?? 0) + 1));
+    return Array.from(map.entries());
+  }, [channelList]);
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return channelList.filter(ch => {
+      if (platform !== 'ALL' && ch.type !== platform) return false;
+      if (mode !== 'ALL' && mode !== 'BASIC') return false; // saat ini semua kanal bermode "Dasar"
+      if (q && !`${ch.name} ${platformName(ch.type)}`.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [channelList, platform, mode, search]);
+
   return (
-    <div className="h-full overflow-y-auto scrollbar-thin">
-      <div className="max-w-6xl mx-auto p-4 lg:p-6 space-y-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="animate-fade-in">
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Connected Platforms</h1>
-            <p className="text-sm text-gray-600 mt-1">Hubungkan semua channel komunikasi dalam satu dashboard terpusat</p>
+    <div className="flex h-full flex-col bg-white">
+      {/* Header */}
+      <div className="flex flex-col gap-4 border-b border-gray-200 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Kanal</h1>
+          <p className="text-sm text-gray-500">Hubungkan sumber data untuk mendukung dasbor pelanggan Anda</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={mode}
+            onChange={e => setMode(e.target.value)}
+            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 focus:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20 sm:w-60"
+          >
+            <option value="ALL">Semua mode</option>
+            <option value="BASIC">Dasar</option>
+          </select>
+          <div className="relative w-full sm:w-60">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Cari kanal"
+              className="h-11 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-primary/40 focus:outline-none focus:ring-1 focus:ring-primary/20"
+            />
           </div>
-          <button onClick={() => setShowModal(true)} className="gradient-btn px-5 py-2.5 text-sm animate-fade-in">
-            <Plus className="w-4 h-4" />
-            Connect New Platform
+          <button onClick={() => setShowModal(true)} className="gradient-btn h-11 flex-shrink-0 px-5 text-sm">
+            <Plus className="h-4 w-4" />
+            Tambah kanal
           </button>
         </div>
+      </div>
 
-        <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-success" />
-            Connected Platforms
-            {Array.isArray(channels) && channels.length > 0 && (
-              <span className="text-sm font-normal text-gray-400">({channels.length})</span>
-            )}
-          </h2>
+      <div className="flex min-h-0 flex-1">
+        {/* Sidebar platform */}
+        <aside className="hidden w-[250px] flex-shrink-0 overflow-y-auto border-r border-gray-200 p-3 md:block">
+          <button
+            onClick={() => setPlatform('ALL')}
+            className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-left text-sm transition ${
+              platform === 'ALL' ? 'bg-primary/10 font-semibold text-primary' : 'text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            Semua platform
+            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-gray-700">{channelList.length}</span>
+          </button>
+          <div className="mt-1 space-y-1">
+            {platformCounts.map(([type, count]) => {
+              const Icon = getPlatformIcon(type);
+              const active = platform === type;
+              return (
+                <button
+                  key={type}
+                  onClick={() => setPlatform(type)}
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${
+                    active ? 'bg-primary/10 font-semibold text-primary' : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <Icon size="22" />
+                  <span className="flex-1 truncate">{platformName(type)}</span>
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
 
+        {/* Daftar kanal */}
+        <main className="min-w-0 flex-1 overflow-y-auto scrollbar-thin bg-gray-50/40 p-4">
           {isLoading ? (
-            <div className="flex justify-center py-20"><Spinner className="w-8 h-8 text-primary" /></div>
-          ) : !Array.isArray(channels) || channels.length === 0 ? (
-            <div className="glass-card rounded-2xl p-16 text-center !transform-none">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center bg-primary/10">
-                <Wifi className="w-8 h-8 text-primary" />
+            <div className="flex justify-center py-20"><Spinner className="h-8 w-8 text-primary" /></div>
+          ) : channelList.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
+                <Wifi className="h-6 w-6 text-primary" />
               </div>
-              <p className="text-gray-700 font-medium text-lg">No platforms connected</p>
-              <p className="text-gray-400 text-sm mt-1 mb-6">Connect your first platform to start managing conversations</p>
+              <p className="text-lg font-semibold text-gray-900">Belum ada kanal</p>
+              <p className="mb-6 mt-1 text-sm text-gray-500">Tambahkan kanal pertama Anda untuk mulai mengelola percakapan</p>
               <button onClick={() => setShowModal(true)} className="gradient-btn px-5 py-2.5 text-sm">
-                <Plus className="w-4 h-4" />
-                Connect Your First Platform
+                <Plus className="h-4 w-4" />
+                Tambah kanal
               </button>
             </div>
+          ) : visible.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">
+              Tidak ada kanal yang cocok dengan filter atau pencarian Anda.
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {channels.map((ch: Channel, i: number) => {
+            <div className="space-y-3">
+              {visible.map(ch => {
                 const Icon = getPlatformIcon(ch.type);
-                const color = getPlatformColor(ch.type);
                 const waSession = getWaSession(ch);
                 const waStatus = deviceStatus[ch.id] || waSession?.status;
+                const isOn = ch.type === 'WHATSAPP_UNOFFICIAL' ? waStatus === 'connected' : ch.isActive;
+
+                const subtitle =
+                  ch.type === 'WHATSAPP_UNOFFICIAL' ? waSession?.phone
+                  : ch.type === 'TIKTOK' ? `${ch.metadata?.follower_count?.toLocaleString() || 0} followers`
+                  : ch.phoneNumberId || ch.wabaId || null;
+
+                const st = readChannelSettings(ch);
+                const aiName = st.aiValue === 'off' ? 'Nonaktif'
+                  : st.aiValue ? (agentList.find(a => a.id === st.aiValue)?.name ?? 'Agent dihapus')
+                  : 'Otomatis';
+                const agentNames = st.agentIds.map(id => userList.find(u => u.id === id)?.name).filter(Boolean);
+
                 return (
-                  <div key={ch.id} className="glass-card rounded-2xl p-5" style={{ animationDelay: `${i * 80}ms` }}>
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + '20' }}>
-                          <Icon size="24" />
+                  <div key={ch.id} className="rounded-xl border border-gray-200 bg-white p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-100">
+                          {ch.type === 'TIKTOK' && ch.metadata?.avatar_url ? (
+                            <img src={ch.metadata.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                          ) : (
+                            <Icon size="24" />
+                          )}
+                          <span
+                            className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${isOn ? 'bg-success' : 'bg-gray-300'}`}
+                            title={isOn ? 'Terhubung' : 'Terputus'}
+                          />
                         </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{ch.name}</h3>
-                          <p className="text-xs text-gray-500 capitalize">{ch.type.toLowerCase()}</p>
-                        </div>
-                      </div>
-                      {ch.type === 'WHATSAPP_UNOFFICIAL' ? (
-                        <span className={`status-dot ${waStatus === 'connected' ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
-                      ) : (
-                        <span className={`status-dot ${ch.isActive ? 'status-dot-connected' : 'status-dot-disconnected'}`} />
-                      )}
-                    </div>
-
-                    {ch.type === 'WHATSAPP_UNOFFICIAL' && waSession?.phone ? (
-                      <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">
-                        <Smartphone className="w-3.5 h-3.5" />
-                        <span className="truncate">{waSession.phone}</span>
-                      </div>
-                    ) : null}
-
-                    {ch.type === 'TIKTOK' && ch.metadata ? (
-                      <div className="flex items-center gap-3 text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">
-                        {ch.metadata.avatar_url && (
-                          <img src={ch.metadata.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-gray-700 truncate">@{ch.name}</p>
-                          <p className="text-gray-400">
-                            {ch.metadata.follower_count?.toLocaleString() || 0} followers
+                        <div className="min-w-0">
+                          <h3 className="truncate font-semibold text-gray-900">{ch.name}</h3>
+                          <p className="truncate text-xs text-gray-500">
+                            {platformName(ch.type)}
+                            {subtitle ? <> <span className="mx-1 text-gray-300">|</span> {subtitle}</> : null}
                           </p>
                         </div>
                       </div>
-                    ) : ch.wabaId ? (
-                      <div className="flex items-center gap-2 text-xs text-gray-500 mb-3 bg-gray-50 rounded-lg px-3 py-2">
-                        <Smartphone className="w-3.5 h-3.5" />
-                        <span className="truncate">{ch.phoneNumberId || ch.wabaId}</span>
-                      </div>
-                    ) : null}
 
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-4">
-                      <span className="flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        {ch.createdAt ? new Date(ch.createdAt).toLocaleDateString() : 'N/A'}
-                      </span>
-                      {ch._count !== undefined && (
-                        <span>{ch._count.conversations} conversations</span>
-                      )}
+                      <div className="flex flex-shrink-0 items-center gap-2">
+                        {ch.type === 'WHATSAPP_UNOFFICIAL' ? (
+                          <>
+                            <button
+                              onClick={() => reconnectMutation.mutate(ch.id)}
+                              disabled={reconnectMutation.isPending}
+                              className={ICON_BTN}
+                              title="Hubungkan ulang"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => logoutMutation.mutate(ch.id)}
+                              disabled={logoutMutation.isPending}
+                              className={`${ICON_BTN} hover:text-orange-600`}
+                              title="Logout"
+                            >
+                              <LogOut className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm('Delete this WhatsApp device?')) deleteMutation.mutate(ch.id);
+                              }}
+                              className={`${ICON_BTN} hover:text-danger`}
+                              title="Hapus perangkat"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {ch.type === 'TIKTOK' && (
+                              <button
+                                onClick={() => navigate(`/channels/tiktok/${ch.id}`)}
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                              >
+                                Kelola
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deleteMutation.mutate(ch.id)}
+                              className={`${ICON_BTN} hover:text-danger`}
+                              title="Putuskan"
+                            >
+                              <Unlink className="h-4 w-4" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setSettingsChannel(ch)}
+                          className="inline-flex items-center gap-1.5 px-2 py-2 text-sm font-semibold text-primary transition hover:text-primary-dark"
+                        >
+                          <SettingsIcon className="h-4 w-4" />
+                          Pengaturan kanal
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="flex gap-2 pt-3 border-t border-gray-100">
-                      {ch.type === 'WHATSAPP_UNOFFICIAL' ? (
-                        <>
-                          <button
-                            onClick={() => reconnectMutation.mutate(ch.id)}
-                            disabled={reconnectMutation.isPending}
-                            className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all disabled:opacity-50"
-                          >
-                            <RefreshCw className="w-4 h-4 inline mr-1" />
-                            Reconnect
-                          </button>
-                          <button
-                            onClick={() => logoutMutation.mutate(ch.id)}
-                            disabled={logoutMutation.isPending}
-                            className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-500 hover:text-orange-600 hover:bg-orange-50 transition-all disabled:opacity-50"
-                            title="Logout"
-                          >
-                            <LogOut className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm('Delete this WhatsApp device?')) {
-                                deleteMutation.mutate(ch.id);
-                              }
-                            }}
-                            className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-400 hover:text-danger hover:bg-red-50 transition-all"
-                            title="Delete device"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => {
-                              if (ch.type === 'TIKTOK') {
-                                navigate(`/channels/tiktok/${ch.id}`);
-                              }
-                            }}
-                            className="flex-1 px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-800 transition-all"
-                          >
-                            <SettingsIcon className="w-4 h-4 inline mr-1.5" />
-                            Manage
-                          </button>
-                          <button
-                            onClick={() => deleteMutation.mutate(ch.id)}
-                            className="px-3 py-2 text-sm font-medium rounded-lg bg-gray-50 text-gray-400 hover:text-danger hover:bg-red-50 transition-all"
-                          >
-                            <Unlink className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Chip>Mode: Dasar</Chip>
+                      <Chip>AI Agent: {aiName}</Chip>
+                      <Chip>Agen: {agentNames.length ? agentNames.join(', ') : 'Belum diatur'}</Chip>
+                      <Chip tone="success">Distribusi chat: {DISTRIBUTION_LABEL[st.distribution]}</Chip>
+                      <Chip>Maks. percakapan: {st.maxPerAgent || 'Belum diatur'}</Chip>
+                      <Chip>Agen pilihan: {st.preferredAgent ? 'Aktif' : 'Belum diatur'}</Chip>
                     </div>
                   </div>
                 );
               })}
             </div>
           )}
-        </section>
-
-        <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Available Integrations</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {availableIntegrations.map((p, i) => {
-              const Icon = p.icon;
-              const alreadyConnected = Array.isArray(channels) && channels.some((ch: Channel) => ch.type === p.id);
-              return (
-                <div
-                  key={p.id}
-                  className="glass-card rounded-xl p-4 cursor-pointer"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                  onClick={() => {
-                    if (alreadyConnected && p.id !== 'WHATSAPP_UNOFFICIAL') return;
-                    if (p.id === 'WHATSAPP') setShowWhatsAppModal(true);
-                    else if (p.id === 'WHATSAPP_UNOFFICIAL') setShowWhatsAppUnofficialModal(true);
-                    else if (p.id === 'TIKTOK') setShowTikTokModal(true);
-                    else setShowModal(true);
-                  }}
-                >
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: p.color + '20' }}>
-                        <Icon size="20" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
-                      {p.popular && <span className="text-[10px] font-medium" style={{ color: '#18a6fc' }}>Popular</span>}
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed mb-3">{p.desc}</p>
-                  {alreadyConnected && p.id !== 'WHATSAPP_UNOFFICIAL' ? (
-                    <span className="inline-flex items-center gap-1 text-xs text-success font-medium">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Connected
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium hover:text-primary-dark transition-colors" style={{ color: '#18a6fc' }}>
-                      <Plus className="w-3.5 h-3.5" /> {p.id === 'WHATSAPP_UNOFFICIAL' && alreadyConnected ? 'Add Device' : 'Connect'}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        </main>
       </div>
 
-      {showModal && <ConnectionModal onClose={() => setShowModal(false)} />}
+      {showModal && (
+        <ConnectionModal
+          onClose={() => setShowModal(false)}
+          onSelectSpecial={id => {
+            if (id === 'WHATSAPP') setShowWhatsAppModal(true);
+            else if (id === 'WHATSAPP_UNOFFICIAL') setShowWhatsAppUnofficialModal(true);
+            else if (id === 'TIKTOK') setShowTikTokModal(true);
+          }}
+        />
+      )}
       {showWhatsAppModal && <WhatsAppConnectModal onClose={() => setShowWhatsAppModal(false)} />}
       {showWhatsAppUnofficialModal && <WhatsAppUnofficialConnectModal onClose={() => setShowWhatsAppUnofficialModal(false)} />}
       {showTikTokModal && <TikTokConnectModal onClose={() => setShowTikTokModal(false)} />}
+      {settingsChannel && <ChannelSettingsModal channel={settingsChannel} onClose={() => setSettingsChannel(null)} />}
     </div>
   );
 }
 
-function ConnectionModal({ onClose }: { onClose: () => void }) {
+/* ------------------------------------------------------------------ */
+/* Tambah kanal (wizard)                                               */
+/* ------------------------------------------------------------------ */
+
+const SPECIAL_PLATFORMS = ['WHATSAPP', 'WHATSAPP_UNOFFICIAL', 'TIKTOK'];
+
+function ConnectionModal({
+  onClose,
+  onSelectSpecial,
+}: {
+  onClose: () => void;
+  onSelectSpecial: (id: string) => void;
+}) {
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState<typeof availableIntegrations[0] | null>(null);
   const [config, setConfig] = useState({ name: '', wabaId: '', phoneNumberId: '', accessToken: '', verifyToken: '' });
@@ -441,10 +503,16 @@ function ConnectionModal({ onClose }: { onClose: () => void }) {
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to connect'),
   });
 
-  const steps = ['Select Platform', 'Authentication', 'Configuration', 'Test Connection'];
+  const steps = ['Pilih platform', 'Autentikasi', 'Konfigurasi', 'Uji koneksi'];
 
   const handleNext = () => {
     if (step === 0 && !selected) { toast.error('Please select a platform'); return; }
+    // Platform dengan alur khusus langsung membuka modalnya sendiri
+    if (step === 0 && selected && SPECIAL_PLATFORMS.includes(selected.id)) {
+      onClose();
+      onSelectSpecial(selected.id);
+      return;
+    }
     if (step === 1 && selected?.id === 'WHATSAPP' && !config.accessToken) { toast.error('Access token is required'); return; }
     if (step === 2 && !config.name) { toast.error('Platform name is required'); return; }
     if (step === 3) {
@@ -460,51 +528,70 @@ function ConnectionModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40" />
-      <div className="glass-modal w-full max-w-lg max-h-[90vh] overflow-y-auto scrollbar-thin relative animate-slide-up" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-5 border-b border-gray-100">
+      <div
+        className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-xl scrollbar-thin animate-slide-up"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div className="flex items-center gap-3">
             {step > 0 && (
-              <button onClick={() => { setStep(s => s - 1); if (step === 3) setTestResult('idle'); }} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
-                <ArrowLeft className="w-5 h-5" />
+              <button
+                onClick={() => { setStep(s => s - 1); if (step === 3) setTestResult('idle'); }}
+                className="text-gray-800 transition hover:text-primary"
+                aria-label="Kembali"
+              >
+                <ArrowLeft className="h-5 w-5" />
               </button>
             )}
-            <h3 className="text-lg font-semibold text-gray-900">Connect Platform</h3>
+            <h3 className="text-lg font-bold text-gray-900">Tambah kanal</h3>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 transition-colors">
-            <XCircle className="w-5 h-5" />
+          <button onClick={onClose} className="text-gray-400 transition hover:text-gray-700" aria-label="Tutup">
+            <XCircle className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex items-center gap-2 px-5 pt-4 pb-2">
-          {steps.map((s, i) => (
-            <div key={i} className="flex items-center gap-2 flex-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium transition-all ${
-                i === step ? 'gradient-btn' : i < step ? 'bg-success text-white' : 'bg-gray-100 text-gray-400'
-              }`}>
-                {i < step ? <Check className="w-3.5 h-3.5" /> : i + 1}
+        {/* Stepper */}
+        <div className="border-b border-gray-200 px-6 py-4">
+          <div className="flex items-center gap-2">
+            {steps.map((s, i) => (
+              <div key={s} className="flex flex-1 items-center gap-2 last:flex-none">
+                <div
+                  className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold transition ${
+                    i === step ? 'bg-primary text-white' : i < step ? 'bg-success text-white' : 'bg-gray-100 text-gray-400'
+                  }`}
+                >
+                  {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                </div>
+                {i < steps.length - 1 && <div className={`h-0.5 flex-1 rounded-full ${i < step ? 'bg-success' : 'bg-gray-200'}`} />}
               </div>
-              {i < steps.length - 1 && <div className={`flex-1 h-0.5 rounded-full ${i < step ? 'bg-success' : 'bg-gray-200'}`} />}
-            </div>
-          ))}
+            ))}
+          </div>
+          <p className="mt-2 text-xs font-medium text-gray-500">{steps[step]}</p>
         </div>
 
-        <div className="p-5">
+        {/* Isi */}
+        <div className="p-6">
           {step === 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Platform</p>
-              <p className="text-sm text-gray-600 mb-5">Select the platform you wish to establish your new inbox</p>
+              <h4 className="text-base font-semibold text-gray-900">Pilih platform</h4>
+              <p className="mb-5 mt-1 text-sm text-gray-500">Pilih platform untuk inbox baru Anda</p>
               <div className="grid grid-cols-2 gap-3">
                 {availableIntegrations.map(p => {
                   const Icon = p.icon;
                   const isSelected = selected?.id === p.id;
                   return (
-                    <button key={p.id} onClick={() => setSelected(p)}
-                      className={`flex flex-col items-center gap-2.5 p-4 rounded-xl border transition-all ${
-                        isSelected ? '' : 'border-gray-200 bg-gray-50 hover:border-gray-300 hover:bg-white'
+                    <button
+                      key={p.id}
+                      onClick={() => setSelected(p)}
+                      className={`flex flex-col items-center gap-2.5 rounded-xl border p-4 transition ${
+                        isSelected ? 'border-primary bg-primary/5' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
                       }`}
-                      style={isSelected ? { borderColor: 'rgba(24, 166, 252, 0.5)', background: 'rgba(24, 166, 252, 0.05)' } : undefined}>
-                      <Icon size="32" />
-                      <span className="text-sm font-medium text-gray-800">{p.name}</span>
+                    >
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-100">
+                        <Icon size="26" />
+                      </div>
+                      <span className={`text-sm font-medium ${isSelected ? 'text-primary' : 'text-gray-800'}`}>{p.name}</span>
                     </button>
                   );
                 })}
@@ -526,7 +613,9 @@ function ConnectionModal({ onClose }: { onClose: () => void }) {
               {selected.id === 'INSTAGRAM' && <Input label="Instagram Access Token" placeholder="IG Access Token" type="password" />}
               {selected.id === 'FACEBOOK' && <Input label="Facebook Page Access Token" placeholder="FB Page Token" type="password" />}
               {!['WHATSAPP', 'INSTAGRAM', 'FACEBOOK'].includes(selected.id) && (
-                <p className="text-sm text-gray-400 py-8 text-center">Configuration guide will appear here</p>
+                <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-4 py-10 text-center text-sm text-gray-500">
+                  Panduan konfigurasi akan muncul di sini
+                </div>
               )}
             </div>
           )}
@@ -536,66 +625,75 @@ function ConnectionModal({ onClose }: { onClose: () => void }) {
               <p className="text-sm text-gray-500">Konfigurasi nama dan pengaturan platform</p>
               <Input label="Business/Platform Name" placeholder="e.g. Support WhatsApp" value={config.name} onChange={e => setConfig(c => ({ ...c, name: e.target.value }))} />
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">AI Agent</label>
+                <label className="mb-1.5 block text-sm font-semibold text-gray-900">AI Agent</label>
                 <Select options={[{ value: '', label: 'No AI Agent' }, { value: 'auto', label: 'Auto-Reply Agent' }, { value: 'smart', label: 'Smart Assistant' }]} value="" onChange={() => {}} />
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1.5">Routing</label>
+                <label className="mb-1.5 block text-sm font-semibold text-gray-900">Routing</label>
                 <Select options={[{ value: 'round-robin', label: 'Round Robin' }, { value: 'skills-based', label: 'Skills-Based' }, { value: 'manual', label: 'Manual' }]} value="round-robin" onChange={() => {}} />
               </div>
             </div>
           )}
 
           {step === 3 && (
-            <div className="text-center py-8">
+            <div className="py-8 text-center">
               {testing ? (
                 <div className="space-y-4">
-                  <Loader2 className="w-12 h-12 animate-spin mx-auto" style={{ color: '#18a6fc' }} />
-                  <p className="text-gray-700 font-medium">Testing connection...</p>
-                  <p className="text-sm text-gray-500">Verifying credentials and API access</p>
+                  <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
+                  <p className="font-semibold text-gray-900">Menguji koneksi...</p>
+                  <p className="text-sm text-gray-500">Memverifikasi kredensial dan akses API</p>
                 </div>
               ) : testResult === 'success' ? (
-                <div className="space-y-4 animate-fade-in">
-                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-8 h-8 text-success" />
+                <div className="animate-fade-in space-y-4">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-50">
+                    <CheckCircle2 className="h-8 w-8 text-success" />
                   </div>
-                  <p className="text-gray-800 font-medium text-lg">Connection Successful!</p>
+                  <p className="text-lg font-semibold text-gray-900">Koneksi berhasil</p>
                   <p className="text-sm text-gray-500">Semua kredensial valid dan platform siap digunakan</p>
                 </div>
               ) : testResult === 'fail' ? (
                 <div className="space-y-4">
-                  <XCircle className="w-12 h-12 text-danger mx-auto" />
-                  <p className="text-gray-700 font-medium">Connection Failed</p>
-                  <p className="text-sm text-gray-500">Please check your credentials and try again</p>
+                  <XCircle className="mx-auto h-12 w-12 text-danger" />
+                  <p className="font-semibold text-gray-900">Koneksi gagal</p>
+                  <p className="text-sm text-gray-500">Periksa kredensial Anda lalu coba lagi</p>
                 </div>
               ) : null}
             </div>
           )}
         </div>
 
-        <div className="flex justify-between items-center p-5 border-t border-gray-100">
-          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
+        {/* Footer */}
+        <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-6 py-4">
+          <button
+            onClick={onClose}
+            className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+          >
+            Batal
+          </button>
           <div className="flex gap-3">
             {step < 3 && (
-              <button onClick={handleNext} className="gradient-btn px-5 py-2 text-sm">
-                {step === 0 && selected ? 'Next' : 'Continue'}
-                <ArrowRight className="w-4 h-4" />
+              <button onClick={handleNext} className="gradient-btn px-5 py-2.5 text-sm">
+                {step === 0 && selected ? 'Lanjut' : 'Lanjutkan'}
+                <ArrowRight className="h-4 w-4" />
               </button>
             )}
             {step === 3 && testResult === 'success' && (
-              <button onClick={handleConnect} className="gradient-btn px-6 py-2 text-sm" disabled={mutation.isPending}>
-                {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                Connect Platform
+              <button onClick={handleConnect} className="gradient-btn px-6 py-2.5 text-sm disabled:opacity-50" disabled={mutation.isPending}>
+                {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                Tambah kanal
               </button>
             )}
             {step === 3 && testResult === 'idle' && (
-              <button onClick={handleNext} className="gradient-btn px-5 py-2 text-sm">
-                Test Connection <ArrowRight className="w-4 h-4" />
+              <button onClick={handleNext} className="gradient-btn px-5 py-2.5 text-sm">
+                Uji koneksi <ArrowRight className="h-4 w-4" />
               </button>
             )}
             {step === 3 && testResult === 'fail' && (
-              <button onClick={() => { setStep(1); setTestResult('idle'); }} className="px-5 py-2 text-sm rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">
-                Back to Settings
+              <button
+                onClick={() => { setStep(1); setTestResult('idle'); }}
+                className="rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-600 transition hover:bg-gray-50"
+              >
+                Kembali ke pengaturan
               </button>
             )}
           </div>

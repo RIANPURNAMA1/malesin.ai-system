@@ -1,11 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, MoreVertical, CheckCheck, Check, Clock, X, UserPlus, ChevronDown, ChevronLeft } from 'lucide-react';
+import ChatMenu from './ChatMenu';
+import { Send, Paperclip, CheckCheck, Check, Clock, X, UserPlus, ChevronDown, ChevronLeft, Bot } from 'lucide-react';
 import { format } from 'date-fns';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { conversationService } from '../../services/conversation.service';
 import { useInboxStore } from '../../store/inbox.store';
 import { useMessages, useSendMessage, useUpdateStatus, useConversation } from '../../hooks/useConversation';
 import { Avatar, Spinner } from '../ui/index';
 import { Message, Conversation } from '../../types';
 import { useSocketStore } from '../../store/socket.store';
+import { useNotificationStore } from '../../store/notification.store';
 
 interface Props { conversationId: string; onOpenDetail: () => void; onBack?: () => void; }
 
@@ -21,7 +26,40 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
   const convMessages = messages[conversationId] || [];
   const isTyping = !!typing[conversationId];
 
+  // Chat yang sedang dibuka → notifikasinya dianggap sudah dibaca.
+  const markNotifRead = useNotificationStore(s => s.markConversationRead);
+  useEffect(() => { markNotifRead(conversationId); }, [conversationId, convMessages.length, markNotifRead]);
+
   useEffect(() => { socket?.emit('conversation:join', conversationId); return () => { socket?.emit('conversation:leave', conversationId); }; }, [conversationId, socket]);
+
+  // --- Human takeover: status AI per percakapan ---
+  const qc = useQueryClient();
+  const lastTypingEmit = useRef(0);
+  useEffect(() => {
+    if (!socket) return;
+    const onAiStatus = (e: { conversationId: string }) => {
+      if (e.conversationId === conversationId) qc.invalidateQueries({ queryKey: ['conversation', conversationId] });
+    };
+    socket.on('conversation:ai-status', onAiStatus);
+    return () => { socket.off('conversation:ai-status', onAiStatus); };
+  }, [socket, conversationId]);
+  const toggleAi = useMutation({
+    mutationFn: (paused: boolean) => conversationService.setAiPaused(conversationId, paused),
+    onSuccess: (_r, paused) => {
+      qc.invalidateQueries({ queryKey: ['conversation', conversationId] });
+      toast.success(paused ? 'AI dijeda untuk percakapan ini' : 'AI aktif kembali');
+    },
+    onError: () => toast.error('Gagal mengubah status AI'),
+  });
+  // Agen mengetik → beri tahu server (maks. tiap 3 detik) supaya AI berhenti membalas.
+  const handleTextChange = (value: string) => {
+    setText(value);
+    const now = Date.now();
+    if (value.trim() && now - lastTypingEmit.current > 3000) {
+      lastTypingEmit.current = now;
+      socket?.emit('typing:start', { conversationId });
+    }
+  };
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [convMessages.length, isTyping]);
 
   const handleSend = async () => {
@@ -49,9 +87,33 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {(() => {
+            const until = (conv as any).metadata?.aiPausedUntil as string | null | undefined;
+            const aiPaused = until === 'manual' || (!!until && new Date(until).getTime() > Date.now());
+            const title = aiPaused
+              ? until === 'manual' ? 'AI dijeda sampai diaktifkan lagi. Klik untuk mengaktifkan.' : `AI dijeda sampai ${format(new Date(until!), 'HH:mm')}. Klik untuk mengaktifkan.`
+              : 'AI membalas otomatis. Klik untuk menjeda.';
+            return (
+              <button
+                onClick={() => toggleAi.mutate(!aiPaused)}
+                disabled={toggleAi.isPending}
+                title={title}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+                  aiPaused ? 'bg-amber-50 text-amber-700 hover:bg-amber-100' : 'bg-primary/10 text-primary hover:bg-primary/15'
+                }`}
+              >
+                <Bot className="w-3.5 h-3.5" /> {aiPaused ? 'AI dijeda' : 'AI aktif'}
+              </button>
+            );
+          })()}
           <StatusDropdown current={conv.status} onUpdate={s => updateStatus.mutate(s)} />
           <button onClick={onOpenDetail} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"><UserPlus className="w-4 h-4" /></button>
-          <button className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"><MoreVertical className="w-4 h-4" /></button>
+          <ChatMenu
+            conversationId={conversationId}
+            contactId={conv.contact.id}
+            phone={((conv.contact as any).metadata?.whatsappId as string || conv.contact.phone || '').replace(/@(c\.us|s\.whatsapp\.net|lid|g\.us|broadcast)$/, '')}
+            onOpenDetail={onOpenDetail}
+          />
         </div>
       </div>
 
@@ -67,7 +129,7 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
         <div className="bg-white border-t border-gray-200 p-4 flex-shrink-0">
           <div className="flex items-end gap-3 bg-gray-50 rounded-xl border border-gray-200 p-2 focus-within:border-primary/30 focus-within:bg-white transition-all">
             <button className="p-1.5 text-gray-400 hover:text-gray-600 flex-shrink-0"><Paperclip className="w-5 h-5" /></button>
-            <textarea value={text} onChange={e => setText(e.target.value)} onKeyDown={handleKeyDown}
+            <textarea value={text} onChange={e => handleTextChange(e.target.value)} onKeyDown={handleKeyDown}
               placeholder="Type a message... (Enter to send)" rows={1} style={{ maxHeight: 120 }}
               className="flex-1 bg-transparent resize-none text-sm text-gray-900 placeholder-gray-400 focus:outline-none scrollbar-thin" />
             <button onClick={handleSend} disabled={!text.trim() || sendMutation.isPending}

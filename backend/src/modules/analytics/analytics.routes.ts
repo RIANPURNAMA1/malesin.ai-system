@@ -2,10 +2,29 @@ import { Router, Response, NextFunction } from 'express';
 import prisma from '../../config/database';
 import { success } from '../../utils/response';
 import { AuthRequest } from '../../types/express.d';
-import { authenticate } from '../../middlewares/auth.middleware';
+import { authenticate, authorize } from '../../middlewares/auth.middleware';
+import {
+  AnalyticsQuery, leadsAnalytics, sessionAnalytics, sessionList, aiAnalytics, humanAnalytics, broadcastAnalytics, getSla, setSla,
+} from './analytics.service';
 
 const router = Router();
 router.use(authenticate);
+
+// --- Analytics v2 (halaman /analytics) ---
+type Handler = (req: AuthRequest) => Promise<unknown>;
+const v2 = (fn: Handler) => async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try { success(res, await fn(req)); } catch (err) { next(err); }
+};
+const q = (req: AuthRequest) => req.query as AnalyticsQuery & { page?: string };
+
+router.get('/leads', v2(req => leadsAnalytics(req.user!.companyId, req.query as AnalyticsQuery & { pipelineId?: string })));
+router.get('/session', v2(req => sessionAnalytics(req.user!.companyId, q(req))));
+router.get('/session/list', v2(req => sessionList(req.user!.companyId, q(req))));
+router.get('/ai', v2(req => aiAnalytics(req.user!.companyId, q(req))));
+router.get('/human', v2(req => humanAnalytics(req.user!.companyId, q(req))));
+router.get('/broadcast', v2(req => broadcastAnalytics(req.user!.companyId, q(req))));
+router.get('/sla', v2(req => getSla(req.user!.companyId)));
+router.put('/sla', authorize('OWNER', 'ADMIN'), v2(req => setSla(req.user!.companyId, req.body)));
 
 router.get('/overview', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {

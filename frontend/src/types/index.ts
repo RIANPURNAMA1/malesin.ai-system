@@ -162,13 +162,22 @@ export interface Post {
 }
 
 export interface Notification {
-  type: 'NEW_MESSAGE' | 'ASSIGNED' | 'CLOSED';
+  type: 'NEW_MESSAGE' | 'ASSIGNED' | 'CLOSED' | 'BROADCAST_PAUSED' | 'DEAL_SUGGESTION';
   title: string;
   body: string;
-  conversationId: string;
+  conversationId?: string;
+  /** Halaman tujuan saat diklik (default: chat percakapan). */
+  link?: string;
 }
 
 export type AiProvider = 'OPENAI' | 'ANTHROPIC' | 'GOOGLE' | 'GROQ';
+
+/** Instruksi tambahan untuk AI. Pipeline kosong = semua pelanggan. */
+export interface AiAdditionalInstruction {
+  id: string;
+  content: string;
+  pipeline?: string | null;
+}
 
 export interface AiAgent {
   id: string;
@@ -178,6 +187,12 @@ export interface AiAgent {
   provider: AiProvider;
   model: string;
   systemPrompt?: string | null;
+  welcomeMessage?: string | null;
+  communicationStyle?: string | null;
+  conversationFlow?: string | null;
+  communicationRules?: string | null;
+  additionalInstructions?: AiAdditionalInstruction[] | null;
+  version?: number;
   temperature: number;
   maxTokens: number;
   isActive: boolean;
@@ -187,12 +202,27 @@ export interface AiAgent {
   _count?: { knowledge: number };
 }
 
+export interface AiKnowledgeMedia {
+  id: string;
+  companyId: string;
+  knowledgeId: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number;
+  storagePath: string;
+  publicUrl: string;
+  altText?: string | null;
+  description?: string | null;
+  createdAt: string;
+}
+
 export interface AiKnowledge {
   id: string;
   companyId: string;
   aiAgentId: string;
   title: string;
   content: string;
+  media?: AiKnowledgeMedia[];
   createdAt: string;
   updatedAt: string;
 }

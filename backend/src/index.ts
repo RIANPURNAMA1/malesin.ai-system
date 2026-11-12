@@ -14,6 +14,8 @@ import { TikTokAuthController } from './modules/social-auth/tiktok-auth.controll
 import { errorHandler, notFound } from './middlewares/error.middleware';
 import { initSocket } from './sockets/socket.server';
 import { startScheduleChecker } from './queues/schedule.queue';
+import { startBroadcastEngine } from './modules/broadcast/broadcast.engine';
+import { startPipelineAutomation } from './modules/crm/pipeline.automation';
 import { whatsAppUnofficialService } from './modules/channel/whatsapp-unofficial.service';
 import logger from './utils/logger';
 
@@ -28,8 +30,17 @@ app.use(cors({
   credentials: true,
 }));
 
-// Serve uploaded files
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Serve uploaded files (dipakai juga sebagai URL publik media Knowledge Base).
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'), {
+  setHeaders: (res) => {
+    // Supaya gambar bisa ditampilkan lintas origin di dashboard dan diambil
+    // oleh WhatsApp gateway/provider AI.
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    // File upload hanya untuk ditampilkan, jangan pernah dieksekusi sebagai script.
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+  },
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -64,6 +75,8 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   logger.info(`Server running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
   startScheduleChecker();
+  startBroadcastEngine();
+  startPipelineAutomation();
 
   // Pulihkan sesi WhatsApp Unofficial yang kredensialnya masih tersimpan di
   // disk, supaya device yang sudah terhubung tidak tampil disconnected

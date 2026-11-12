@@ -23,7 +23,7 @@ export default function ChannelSidebar() {
   const { filters, setFilters } = useInboxStore();
 
   return (
-    <div className="w-[200px] flex-shrink-0 bg-gray-50 border-r border-gray-200 p-3 flex flex-col gap-1">
+    <div className="w-[200px] h-full flex-shrink-0 overflow-y-auto bg-gray-50 border-r border-gray-200 p-3 flex flex-col gap-1">
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 mb-3">Channels</p>
       <button
         onClick={() => setFilters({ channelId: '' })}

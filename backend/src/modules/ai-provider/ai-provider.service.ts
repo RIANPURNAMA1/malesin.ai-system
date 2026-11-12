@@ -10,7 +10,12 @@ function mapProviderError(err: any, fallback: string): never {
     err?.response?.data?.error;
 
   if (status === 401 || status === 403) throw createError('API key tidak valid atau tidak memiliki akses', 400);
-  if (status === 404) throw createError('Model atau endpoint tidak ditemukan untuk provider ini', 400);
+  if (status === 404) {
+    throw createError(
+      `Model atau endpoint tidak ditemukan untuk provider ini${providerMsg ? `: ${String(providerMsg).slice(0, 200)}` : ''}. Klik "Load Models" lalu pilih model dari daftar.`,
+      400
+    );
+  }
   if (status === 429) throw createError('Rate limit provider tercapai, coba lagi nanti', 429);
   if (status && providerMsg) throw createError(`${fallback}: ${String(providerMsg).slice(0, 300)}`, 502);
   if (err?.code === 'ECONNABORTED') throw createError('Koneksi ke provider timeout', 504);

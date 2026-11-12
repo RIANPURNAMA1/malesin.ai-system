@@ -4,6 +4,7 @@
 // agar Node memakai loader ESM asli, bukan hasil transpile tsx ke CJS.
 import type { WAMessage, WASocket, proto } from '@whiskeysockets/baileys';
 import * as QRCode from 'qrcode';
+import axios from 'axios';
 import prisma from '../../config/database';
 import { getIO } from '../../sockets/socket.server';
 import { contactService } from '../contact/contact.routes';
@@ -49,14 +50,11 @@ interface ClientInstance {
   sock: WASocket;
   channelId: string;
   companyId: string;
-<<<<<<< HEAD
   userId: string;
   /** True kalau socket ditutup sengaja (logout / reconnect manual) -> jangan auto-reconnect. */
   manualClose: boolean;
   reconnectAttempts: number;
-=======
   status: WaConnectionStatus;
->>>>>>> origin/main
 }
 
 interface PersistedSession {
@@ -371,7 +369,6 @@ class WhatsAppUnofficialService {
         markOnlineOnConnect: true,
       });
 
-<<<<<<< HEAD
       const instance: ClientInstance = {
         sock,
         channelId,
@@ -379,10 +376,8 @@ class WhatsAppUnofficialService {
         userId,
         manualClose: false,
         reconnectAttempts: isReconnect ? 1 : 0,
+        status: 'connecting',
       };
-=======
-      const instance: ClientInstance = { sock, channelId, companyId, status: 'connecting' };
->>>>>>> origin/main
       this.clients.set(channelId, instance);
 
       sock.ev.on('connection.update', (update) => {
@@ -420,8 +415,8 @@ class WhatsAppUnofficialService {
 
         if (connection === 'open') {
           clearTimeout(timeout);
-<<<<<<< HEAD
           instance.reconnectAttempts = 0;
+          instance.status = 'connected';
 
           const jid = sock.user?.id || null;
           const phone = jid ? jidToPhone(jid) : null;
@@ -431,10 +426,6 @@ class WhatsAppUnofficialService {
             phone,
             connectedAt: new Date().toISOString(),
           });
-
-=======
-          instance.status = 'connected';
->>>>>>> origin/main
           io.to(`user:${userId}`).emit('wa-unofficial:ready', { channelId });
           io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'connected' });
           logger.info(`WhatsApp Unofficial ready: ${channelId} (${phone || 'unknown'})`);
@@ -457,35 +448,15 @@ class WhatsAppUnofficialService {
           const isRestartRequired = statusCode === DisconnectReason.restartRequired;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
-<<<<<<< HEAD
           // Kalau socket ini sudah digantikan socket baru (mis. reconnect manual),
           // abaikan event close-nya supaya tidak menimpa status "connected".
           if (this.clients.get(channelId) !== instance && !isLoggedOut) {
             logger.info(`Abaikan close dari socket lama: ${channelId}`);
-=======
-          if (!isRestartRequired) {
-            instance.status = 'disconnected';
-            this.clients.delete(channelId);
-            io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
-          } else {
-            // Pairing berhasil (515) / server minta restart: masih proses menyambung.
-            instance.status = 'connecting';
-          }
-
-          if (statusCode === DisconnectReason.loggedOut) {
-            // Sesi tidak valid lagi: buang creds supaya scan berikutnya bersih.
-            try { rmSync(authDir, { recursive: true, force: true }); } catch {}
-          }
-
-          if (isRestartRequired) {
-            logger.info(`Pairing OK, reconnect otomatis: ${channelId}`);
-            void this.start(channelId, companyId, userId, true).catch((err) =>
-              logger.error('Auto reconnect setelah pairing gagal', err)
-            );
->>>>>>> origin/main
             settle({ qr: null });
             return;
           }
+
+          instance.status = isRestartRequired ? 'connecting' : 'disconnected';
 
           if (isLoggedOut) {
             // Sesi tidak valid lagi: buang creds supaya scan berikutnya bersih.
@@ -630,8 +601,18 @@ class WhatsAppUnofficialService {
    */
   async handleMessage(channelId: string, companyId: string, sock: WASocket, msg: WAMessage) {
     try {
-      const wamid = msg.key?.id;
-      if (!wamid) return;
+      const msgId = msg.key?.id;
+      if (!msgId) return;
+
+      const isOutbound = !!msg.key?.fromMe;
+      const rawJid = msg.key!.remoteJid!;
+      const { phone, lid } = await resolveSenderJid(sock, msg);
+
+      // Chat antar sesama nomor yang terhubung: kedua socket melihat ID pesan
+      // yang sama (keluar di pengirim, masuk di penerima). Salinan masuknya
+      // diberi wamid ber-scope channel supaya tidak dianggap duplikat.
+      const fromOwnChannel = !isOutbound && this.isOwnNumber(companyId, channelId, phone, rawJid);
+      const wamid = fromOwnChannel ? `${msgId}:${channelId}` : msgId;
 
       // Idempoten: pesan yang sama bisa dikirim ulang saat reconnect.
       const duplicated = await prisma.message.findUnique({
@@ -639,10 +620,6 @@ class WhatsAppUnofficialService {
         select: { id: true },
       });
       if (duplicated) return;
-
-      const isOutbound = !!msg.key?.fromMe;
-      const rawJid = msg.key!.remoteJid!;
-      const { phone, lid } = await resolveSenderJid(sock, msg);
       // Pastikan WhatsApp mengirim status typing untuk chat ini.
       void this.subscribePresence(channelId, sock, rawJid);
       // pushName pada pesan fromMe adalah nama akun kita sendiri, bukan customer.
@@ -768,6 +745,8 @@ class WhatsAppUnofficialService {
           status: isOutbound ? 'SENT' : 'DELIVERED',
           isRead: isOutbound,
           sentAt: Number.isNaN(sentAt.getTime()) ? new Date() : sentAt,
+          // Pesan keluar yang masuk lewat event ini diketik langsung dari HP.
+          ...(isOutbound ? { metadata: { source: 'DEVICE' } } : {}),
         },
         include: { attachments: true },
       });
@@ -795,17 +774,62 @@ class WhatsAppUnofficialService {
 
       io.to(`company:${companyId}`).emit('message:new', { conversationId: conversation.id, message });
       io.to(`company:${companyId}`).emit('conversation:updated', fullConversation);
+      // Pesan keluar yang terlihat di sini dikirim dari HP / device lain (balasan
+      // dari aplikasi tidak di-echo), berarti manusia sedang menangani chat ini.
+      if (isOutbound) {
+        void import('../ai-agent/ai-takeover').then(m => m.markHumanActivity(conversation.id)).catch(() => undefined);
+        void import('../conversation/conversation-tracking').then(m => m.trackOutbound(conversation.id, 'DEVICE', content)).catch(() => undefined);
+      }
       if (!isOutbound) {
+        // Pipeline CRM: lead baru / aktivitas / pembacaan AI (bukan grup & bukan nomor sendiri).
+        if (!fromOwnChannel && !/@(g\.us|broadcast)$/i.test(rawJid)) {
+          void import('../crm/pipeline.automation')
+            .then(m => m.onInbound({ companyId, contactId: dbContact.id, conversationId: conversation.id, text: content }))
+            .catch(() => undefined);
+        }
         io.to(`company:${companyId}`).emit('notification', {
           type: 'NEW_MESSAGE',
-          title: `New message from ${senderName || phone}`,
+          title: `Pesan baru dari ${senderName || phone}`,
           body: content || 'Media message',
           conversationId: conversation.id,
         });
+
+        // Auto-reply AI Agent untuk pesan teks masuk (bukan grup). Dynamic
+        // import dipakai supaya tidak ada circular import dengan message service.
+        // Pesan dari nomor sendiri yang juga terhubung tidak dibalas AI agar
+        // dua agent tidak saling balas tanpa henti.
+        if (!fromOwnChannel && type === 'TEXT' && content?.trim() && !/@(g\.us|broadcast)$/i.test(rawJid)) {
+          // Keyword STOP/MULAI ditangani sistem broadcast (AI tidak membalas);
+          // pesan lain dicatat sebagai respons campaign.
+          void import('../broadcast/broadcast.inbound')
+            .then(m => m.handleBroadcastInbound({ companyId, contactId: dbContact.id, conversationId: conversation.id, text: content }))
+            .then(handled => (handled ? null : import('../ai-agent/ai-auto-reply.service')))
+            .then(mod =>
+              mod?.aiAutoReplyService.maybeAutoReply({
+                companyId,
+                channelId,
+                conversationId: conversation.id,
+                text: content,
+                remoteJid: rawJid,
+              })
+            )
+            .catch(err => logger.error('AI auto-reply failed', err));
+        }
       }
     } catch (err) {
       logger.error('WhatsApp Unofficial message handling error', err);
     }
+  }
+
+  /** True kalau pengirim adalah nomor WA lain milik company yang sama yang sedang terhubung. */
+  private isOwnNumber(companyId: string, channelId: string, phone: string, rawJid: string): boolean {
+    const bareJid = rawJid.replace(/:\d+@/, '@');
+    for (const c of this.clients.values()) {
+      if (c.companyId !== companyId || c.channelId === channelId || !c.sock.user) continue;
+      const { id, lid } = c.sock.user as { id: string; lid?: string };
+      if ((phone && jidToPhone(id) === phone) || (lid && lid.replace(/:\d+@/, '@') === bareJid)) return true;
+    }
+    return false;
   }
 
   /**
@@ -838,8 +862,10 @@ class WhatsAppUnofficialService {
     });
     if (!contact) return;
 
+    // Percakapan terbaru (yang tampil di inbox), bukan sembarang percakapan lama.
     const conversation = await prisma.conversation.findFirst({
       where: { companyId, channelId, contactId: contact.id },
+      orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
       select: { id: true },
     });
     if (!conversation) return;
@@ -917,6 +943,13 @@ class WhatsAppUnofficialService {
     return `${to}@s.whatsapp.net`;
   }
 
+  /** Kirim status "sedang mengetik..." (composing) / berhenti (paused) ke lawan chat. */
+  async sendPresence(channelId: string, to: string, state: 'composing' | 'paused') {
+    const instance = this.clients.get(channelId);
+    if (!instance) return;
+    await instance.sock.sendPresenceUpdate(state, this.toJid(to));
+  }
+
   async sendTextMessage(channelId: string, to: string, text: string) {
     const instance = this.clients.get(channelId);
     if (!instance) throw new Error('WhatsApp client not initialized');
@@ -925,12 +958,33 @@ class WhatsAppUnofficialService {
     return { id: sent?.key?.id || '' };
   }
 
-  async sendImageMessage(channelId: string, to: string, imageBase64: string, caption?: string) {
+  /**
+   * Kirim gambar. Menerima URL http(s) (mis. media Knowledge Base), data URL,
+   * atau base64 mentah (kompatibel dengan pemakaian lama).
+   */
+  async sendImageMessage(channelId: string, to: string, image: string, caption?: string) {
     const instance = this.clients.get(channelId);
     if (!instance) throw new Error('WhatsApp client not initialized');
     const jid = this.toJid(to);
-    const buffer = Buffer.from(imageBase64, 'base64');
-    const sent = await instance.sock.sendMessage(jid, { image: buffer, caption });
+
+    let buffer: Buffer;
+    let mimetype: string | undefined;
+    if (/^https?:\/\//i.test(image)) {
+      const res = await axios.get<ArrayBuffer>(image, {
+        responseType: 'arraybuffer',
+        timeout: 20000,
+        maxContentLength: 10 * 1024 * 1024,
+      });
+      buffer = Buffer.from(res.data);
+      const contentType = res.headers['content-type'];
+      mimetype = typeof contentType === 'string' ? contentType.split(';')[0] : undefined;
+    } else {
+      const raw = image.startsWith('data:') ? image.slice(image.indexOf(',') + 1) : image;
+      buffer = Buffer.from(raw, 'base64');
+    }
+
+    if (!buffer.length) throw new Error('Gambar kosong atau gagal diunduh');
+    const sent = await instance.sock.sendMessage(jid, { image: buffer, mimetype, caption });
     return { id: sent?.key?.id || '' };
   }
 
@@ -943,12 +997,8 @@ class WhatsAppUnofficialService {
     return { id: sent?.key?.id || '' };
   }
 
-<<<<<<< HEAD
-  getStatus(channelId: string) {
-    if (this.connecting.has(channelId)) return 'connecting';
-=======
   getStatus(channelId: string): WaConnectionStatus {
->>>>>>> origin/main
+    if (this.connecting.has(channelId)) return 'connecting';
     const instance = this.clients.get(channelId);
     if (!instance) return 'disconnected';
     // Jangan pakai sock.ws.isOpen: saat pairing (QR belum di-scan) WebSocket ke

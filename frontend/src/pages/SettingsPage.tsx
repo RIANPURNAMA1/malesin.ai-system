@@ -5,6 +5,7 @@ import { Button, Input, Avatar, Badge, Select } from '../components/ui/index';
 import { Plus, Trash2, Users, Tag } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/auth.store';
+import { useNavigate } from 'react-router-dom';
 
 const presetLabels = [
   { name: 'Prospect', color: '#f59e0b' },
@@ -51,6 +52,7 @@ function UsersTab() {
   const { user: me } = useAuthStore();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'AGENT' });
   const { data: users } = useQuery({ queryKey: ['users'], queryFn: userService.list });
   const createMutation = useMutation({
@@ -96,16 +98,27 @@ function UsersTab() {
       )}
 
       <div className="glass-card overflow-hidden !transform-none !shadow-none">
-        {Array.isArray(users) && users.length > 0 ? users.map((u: any) => (
-          <div key={u.id} className="flex items-center gap-4 px-5 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors">
-            <Avatar name={u.name} size="sm" />
+        {Array.isArray(users) && users.length > 0 ? users.map((u: any) => {
+          const isMe = u.id === me?.id;
+          // Baris akun sendiri membuka Profil saya (ubah nama, email, password).
+          const openProfile = () => isMe && navigate('/profile');
+          return (
+          <div key={u.id}
+            onClick={openProfile}
+            onKeyDown={e => isMe && e.key === 'Enter' && navigate('/profile')}
+            role={isMe ? 'button' : undefined}
+            tabIndex={isMe ? 0 : undefined}
+            title={isMe ? 'Buka profil saya' : undefined}
+            className={`flex items-center gap-4 px-5 py-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors ${isMe ? 'cursor-pointer' : ''}`}>
+            <Avatar name={u.name} src={isMe ? me?.avatar : u.avatar} size="sm" />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-gray-800">{u.name}</p>
-                {u.id === me?.id && <span className="text-xs text-gray-400">(you)</span>}
+                <p className="text-sm font-medium text-gray-800">{isMe ? me?.name : u.name}</p>
+                {isMe && <span className="text-xs text-gray-400">(you)</span>}
               </div>
-              <p className="text-xs text-gray-400">{u.email}</p>
+              <p className="text-xs text-gray-400">{isMe ? me?.email : u.email}</p>
             </div>
+            {isMe && <span className="hidden text-xs text-primary sm:inline">Lihat profil →</span>}
             <Badge label={u.role} color={roleColors[u.role] || '#6b7280'} />
             {me?.role !== 'AGENT' && u.id !== me?.id && (
               <button onClick={() => deleteMutation.mutate(u.id)}
@@ -114,7 +127,8 @@ function UsersTab() {
               </button>
             )}
           </div>
-        )) : null}
+          );
+        }) : null}
       </div>
     </div>
   );

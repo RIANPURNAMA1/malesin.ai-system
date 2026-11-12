@@ -97,12 +97,56 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { company: true },
-      omit: { password: true, refreshToken: true },
-    });
+    // `omit` belum didukung Prisma 5 tanpa preview feature (dulu bikin 500),
+    // jadi field sensitif dibuang manual.
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { company: true } });
     if (!user) throw createError('User not found', 404);
-    return user;
+    const { password, refreshToken, ...safeUser } = user;
+    void password; void refreshToken;
+    return safeUser;
+  }
+
+  /** Ubah nama / email / avatar milik sendiri. */
+  async updateProfile(userId: string, dto: { name?: string; email?: string; avatar?: string | null }) {
+    const name = dto.name?.trim();
+    const email = dto.email?.trim().toLowerCase();
+    if (dto.name !== undefined && (!name || name.length > 100)) throw createError('Nama wajib diisi (maks. 100 karakter)', 400);
+    if (dto.email !== undefined && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email ?? '')) throw createError('Format email tidak valid', 400);
+    if (dto.avatar && !/^https?:\/\//i.test(dto.avatar)) throw createError('URL foto tidak valid', 400);
+    if (email) {
+      // Login hanya memakai email (tanpa company), jadi email harus unik global.
+      const taken = await prisma.user.findFirst({ where: { email, NOT: { id: userId } }, select: { id: true } });
+      if (taken) throw createError('Email sudah dipakai akun lain', 409);
+    }
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        ...(name ? { name } : {}),
+        ...(email ? { email } : {}),
+        ...(dto.avatar !== undefined ? { avatar: dto.avatar || null } : {}),
+      },
+    });
+    return this.getProfile(userId);
+  }
+
+  /**
+   * Ganti password. Refresh token lama dicabut (sesi di perangkat lain berakhir);
+   * perangkat ini menerima token baru supaya tetap login.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 8) throw createError('Password baru minimal 8 karakter', 400);
+    if (newPassword === currentPassword) throw createError('Password baru harus berbeda dari password lama', 400);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw createError('User not found', 404);
+    if (!(await bcrypt.compare(currentPassword || '', user.password))) throw createError('Password saat ini salah', 400);
+
+    const payload = { userId: user.id, companyId: user.companyId, role: user.role };
+    const accessToken = signAccessToken(payload);
+    const refreshToken = signRefreshToken(payload);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: await bcrypt.hash(newPassword, 12), refreshToken },
+    });
+    return { accessToken, refreshToken };
   }
 }

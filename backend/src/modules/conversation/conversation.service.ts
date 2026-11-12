@@ -66,11 +66,16 @@ export class ConversationService {
     return conv;
   }
 
-  async updateStatus(companyId: string, id: string, status: string) {
+  async updateStatus(companyId: string, id: string, status: string, userId?: string) {
+    if (!['OPEN', 'PENDING', 'CLOSED'].includes(status)) throw createError('Status tidak valid', 400);
     await this.findById(companyId, id);
     return prisma.conversation.update({
       where: { id },
-      data: { status: status as any },
+      data: {
+        status: status as any,
+        // Catat penutupan untuk metrik durasi; dibuka lagi = reset.
+        ...(status === 'CLOSED' ? { closedAt: new Date(), closedById: userId ?? null } : { closedAt: null, closedById: null }),
+      },
     });
   }
 
@@ -101,6 +106,18 @@ export class ConversationService {
     });
   }
 
+  /** Tandai belum dibaca: pesan masuk terakhir dikembalikan ke unread. */
+  async markUnread(companyId: string, conversationId: string) {
+    await this.findById(companyId, conversationId);
+    const last = await prisma.message.findFirst({
+      where: { conversationId, direction: 'INBOUND' },
+      orderBy: { sentAt: 'desc' },
+      select: { id: true },
+    });
+    if (last) await prisma.message.update({ where: { id: last.id }, data: { isRead: false } });
+    return prisma.conversation.update({ where: { id: conversationId }, data: { isRead: false } });
+  }
+
   async markRead(companyId: string, conversationId: string) {
     await this.findById(companyId, conversationId);
     await prisma.message.updateMany({
@@ -118,6 +135,9 @@ export class ConversationService {
       conversation = await prisma.conversation.create({
         data: { companyId, channelId, contactId, status: 'OPEN' },
       });
+      // Penugasan otomatis ke agen manusia sesuai pengaturan kanal.
+      const { autoAssign } = await import('../channel/channel-routing.service');
+      await autoAssign(conversation.id).catch(() => null);
     }
     return conversation;
   }

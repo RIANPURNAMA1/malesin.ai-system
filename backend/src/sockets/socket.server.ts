@@ -8,7 +8,8 @@ let io: Server;
 export function initSocket(server: HttpServer) {
   io = new Server(server, {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+      // FRONTEND_URL boleh berisi beberapa origin dipisah koma; localhost dev selalu diizinkan.
+      origin: [...(process.env.FRONTEND_URL || '').split(',').map(s => s.trim()).filter(Boolean), 'http://localhost:5173'],
       credentials: true,
     },
     transports: ['websocket', 'polling'],
@@ -44,6 +45,12 @@ export function initSocket(server: HttpServer) {
 
     socket.on('typing:start', ({ conversationId }: { conversationId: string }) => {
       socket.to(`conversation:${conversationId}`).emit('typing:start', { userId: user.userId });
+      // Agen mengetik di dashboard → AI berhenti membalas percakapan ini.
+      if (typeof conversationId === 'string') {
+        void import('../modules/ai-agent/ai-takeover')
+          .then(m => m.markHumanActivity(conversationId, user.companyId))
+          .catch(() => undefined);
+      }
     });
 
     socket.on('typing:stop', ({ conversationId }: { conversationId: string }) => {
@@ -52,6 +59,7 @@ export function initSocket(server: HttpServer) {
 
     socket.on('disconnect', () => {
       logger.info(`Socket disconnected: ${socket.id}`);
+      void import('../modules/channel/channel-routing.service').then(m => m.scheduleOfflineReassign(user.userId));
     });
   });
 

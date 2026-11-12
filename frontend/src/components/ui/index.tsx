@@ -1,5 +1,6 @@
 import React from 'react';
 export { Button } from './Button';
+export { RichTextEditor } from './RichTextEditor';
 
 // Input
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {

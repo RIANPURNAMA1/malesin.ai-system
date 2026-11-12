@@ -1,22 +1,18 @@
 import { create } from 'zustand';
 import { io, Socket } from 'socket.io-client';
 import { Notification } from '../types';
+import { useNotificationStore } from './notification.store';
 
 interface SocketState {
   socket: Socket | null;
   connected: boolean;
-  notifications: Notification[];
   connect: (token: string) => void;
   disconnect: () => void;
-  addNotification: (n: Notification) => void;
-  clearNotifications: () => void;
 }
 
 export const useSocketStore = create<SocketState>((set, get) => ({
   socket: null,
   connected: false,
-  notifications: [],
-
   connect: (token) => {
     const existing = get().socket;
     // Pakai ulang socket yang ada: cukup perbarui token & sambungkan lagi.
@@ -30,7 +26,10 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     const apiUrl = import.meta.env.VITE_API_URL;
     const isRelative = !apiUrl || apiUrl.startsWith('/');
-    const socketUrl = isRelative ? 'http://localhost:5000' : apiUrl.replace(/\/api\/?$/, '');
+    // API relatif = backend satu origin dengan frontend (proxy Vite / reverse proxy
+    // production meneruskan /socket.io). Jangan hardcode localhost: di production
+    // itu menunjuk ke komputer user sendiri sehingga realtime tidak pernah jalan.
+    const socketUrl = isRelative ? window.location.origin : apiUrl.replace(/\/api\/?$/, '');
     const socket = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
@@ -41,9 +40,8 @@ export const useSocketStore = create<SocketState>((set, get) => ({
 
     socket.on('connect', () => set({ connected: true }));
     socket.on('disconnect', () => set({ connected: false }));
-    socket.on('notification', (n: Notification) => {
-      set((s) => ({ notifications: [n, ...s.notifications].slice(0, 50) }));
-    });
+    // Disimpan di notification store (persist per user) untuk panel lonceng.
+    socket.on('notification', (n: Notification) => useNotificationStore.getState().push(n));
 
     set({ socket });
   },
@@ -53,6 +51,4 @@ export const useSocketStore = create<SocketState>((set, get) => ({
     set({ socket: null, connected: false });
   },
 
-  addNotification: (n) => set((s) => ({ notifications: [n, ...s.notifications].slice(0, 50) })),
-  clearNotifications: () => set({ notifications: [] }),
 }));

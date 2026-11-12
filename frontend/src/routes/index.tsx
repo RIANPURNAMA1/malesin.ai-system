@@ -2,9 +2,7 @@ import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/auth.store';
 import AppLayout from '../layouts/AppLayout';
-import AuthLayout from '../layouts/AuthLayout';
 import LoginPage from '../pages/LoginPage';
-import RegisterPage from '../pages/RegisterPage';
 import InboxPage from '../pages/InboxPage';
 import DashboardPage from '../pages/DashboardPage';
 import ContactsPage from '../pages/ContactsPage';
@@ -20,6 +18,8 @@ import MarketingPage from '../pages/MarketingPage';
 import TicketsPage from '../pages/TicketsPage';
 import CallsPage from '../pages/CallsPage';
 import ConversationsPage from '../pages/ConversationsPage';
+import PipelinePage from '../pages/PipelinePage';
+import ProfilePage from '../pages/ProfilePage';
 import BroadcastsPage from '../pages/BroadcastsPage';
 import SchedulePage from '../pages/SchedulePage';
 import FlowPage from '../pages/FlowPage';
@@ -76,9 +76,8 @@ export default function AppRouter() {
     <AuthBootstrap>
       <Routes>
         <Route path="/login" element={<RequireGuest><LoginPage /></RequireGuest>} />
-        <Route element={<RequireGuest><AuthLayout /></RequireGuest>}>
-          <Route path="/register" element={<RegisterPage />} />
-        </Route>
+        {/* Pendaftaran ditutup: akun dibuat oleh admin di Settings → Team Members. */}
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/inbox/:conversationId" element={<InboxPage />} />
@@ -97,6 +96,8 @@ export default function AppRouter() {
           <Route path="/tickets" element={<TicketsPage />} />
           <Route path="/calls" element={<CallsPage />} />
           <Route path="/conversations" element={<ConversationsPage />} />
+          <Route path="/pipeline" element={<PipelinePage />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/broadcasts" element={<BroadcastsPage />} />
           <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/flow" element={<FlowPage />} />

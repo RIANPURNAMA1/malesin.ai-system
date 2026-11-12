@@ -3,6 +3,8 @@ import { WhatsAppService } from '../channel/whatsapp.service';
 import { whatsAppUnofficialService } from '../channel/whatsapp-unofficial.service';
 import { createError } from '../../middlewares/error.middleware';
 import { getIO } from '../../sockets/socket.server';
+import { markHumanActivity } from '../ai-agent/ai-takeover';
+import { trackOutbound, MessageSource } from '../conversation/conversation-tracking';
 
 const whatsappService = new WhatsAppService();
 
@@ -22,9 +24,17 @@ export class MessageService {
     return { messages, total, page, limit };
   }
 
-  async sendMessage(companyId: string, conversationId: string, senderId: string, body: {
+  /**
+   * `source` menandai asal pesan keluar (AI / BROADCAST / SYSTEM). Pesan dari
+   * agen (senderId terisi) selalu AGENT, jadi klien tidak bisa memalsukannya.
+   */
+  async sendMessage(companyId: string, conversationId: string, senderId: string | null, body: {
     type: string; content?: string; mediaUrl?: string; fileName?: string;
-  }) {
+  }, source: MessageSource | { source: MessageSource; aiAgentId?: string } = 'SYSTEM') {
+    const opts = typeof source === 'string' ? { source } : source;
+    const msgSource: MessageSource = senderId ? 'AGENT' : opts.source;
+    // aiAgentId dipakai analytics untuk breakdown per AI Agent.
+    const metadata = { source: msgSource, ...(msgSource === 'AI' && opts.aiAgentId ? { aiAgentId: opts.aiAgentId } : {}) };
     const conversation = await prisma.conversation.findFirst({
       where: { id: conversationId, companyId },
       include: { contact: true, channel: true },
@@ -68,13 +78,13 @@ export class MessageService {
       }
     } catch (err: any) {
       const msg = await prisma.message.create({
-        data: { conversationId, senderId, direction: 'OUTBOUND', type: type as any, content, mediaUrl, fileName, wamid, status: 'FAILED' },
+        data: { conversationId, senderId, direction: 'OUTBOUND', type: type as any, content, mediaUrl, fileName, wamid, status: 'FAILED', metadata },
       });
       throw createError(`WhatsApp send failed: ${err.message}`, 502);
     }
 
     const message = await prisma.message.create({
-      data: { conversationId, senderId, direction: 'OUTBOUND', type: type as any, content, mediaUrl, fileName, wamid, status: 'SENT' },
+      data: { conversationId, senderId, direction: 'OUTBOUND', type: type as any, content, mediaUrl, fileName, wamid, status: 'SENT', metadata },
       include: { sender: { select: { id: true, name: true, avatar: true } } },
     });
 
@@ -83,8 +93,13 @@ export class MessageService {
       data: { lastMessage: content || fileName || 'Media', lastMessageAt: new Date() },
     });
 
+    await trackOutbound(conversationId, msgSource, content).catch(() => undefined);
+
     const io = getIO();
     io.to(`company:${companyId}`).emit('message:new', { conversationId, message });
+
+    // Balasan dari agen manusia (senderId terisi) → AI dijeda untuk percakapan ini.
+    if (senderId) await markHumanActivity(conversationId, companyId).catch(() => undefined);
 
     return message;
   }

@@ -68,6 +68,14 @@
   .status-dot-disconnected {
     @apply bg-danger;
   }
+  /* Placeholder untuk rich text editor (TipTap). */
+  .tiptap-content p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    color: #9ca3af;
+    pointer-events: none;
+  }
 }
 
 @layer utilities {

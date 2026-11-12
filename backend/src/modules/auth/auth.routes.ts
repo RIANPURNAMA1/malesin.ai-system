@@ -29,5 +29,7 @@ router.post('/refresh', [
 
 router.post('/logout', authenticate, ctrl.logout.bind(ctrl));
 router.get('/profile', authenticate, ctrl.profile.bind(ctrl));
+router.put('/profile', authenticate, ctrl.updateProfile.bind(ctrl));
+router.put('/password', authenticate, ctrl.changePassword.bind(ctrl));
 
 export default router;

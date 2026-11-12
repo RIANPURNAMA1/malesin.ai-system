@@ -8,6 +8,12 @@ const authService = new AuthService();
 export class AuthController {
   async register(req: Request, res: Response, next: NextFunction) {
     try {
+      // Pendaftaran publik ditutup; akun dibuat admin di Settings → Team Members.
+      // Set ALLOW_REGISTER=true di .env untuk membukanya kembali.
+      if (process.env.ALLOW_REGISTER !== 'true') {
+        res.status(403).json({ success: false, message: 'Pendaftaran ditutup. Hubungi admin workspace.' });
+        return;
+      }
       const data = await authService.register(req.body);
       success(res, data, 'Registration successful', 201);
     } catch (err) {
@@ -40,6 +46,19 @@ export class AuthController {
     } catch (err) {
       next(err);
     }
+  }
+
+  async updateProfile(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      const { name, email, avatar } = req.body;
+      success(res, await authService.updateProfile(req.user!.userId, { name, email, avatar }), 'Profil diperbarui');
+    } catch (err) { next(err); }
+  }
+
+  async changePassword(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      success(res, await authService.changePassword(req.user!.userId, req.body.currentPassword, req.body.newPassword), 'Password diubah');
+    } catch (err) { next(err); }
   }
 
   async profile(req: AuthRequest, res: Response, next: NextFunction) {

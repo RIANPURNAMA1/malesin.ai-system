@@ -59,15 +59,19 @@ export class ChannelService {
   }
 
   async update(companyId: string, channelId: string, dto: Partial<CreateChannelDto>) {
-    await this.findById(companyId, channelId);
+    const current = await this.findById(companyId, channelId);
     const encryptedToken = dto.accessToken ? encrypt(dto.accessToken) : undefined;
     const { metadata, ...rest } = dto;
+    // Metadata di-merge supaya update pengaturan kanal tidak menghapus data lain (mis. info TikTok).
+    const mergedMeta = metadata !== undefined
+      ? { ...((current.metadata as Record<string, unknown> | null) ?? {}), ...(metadata as Record<string, unknown>) }
+      : undefined;
     return prisma.channel.update({
       where: { id: channelId },
       data: {
         ...rest,
         accessToken: encryptedToken,
-        ...(metadata !== undefined ? { metadata: metadata as Prisma.InputJsonValue } : {}),
+        ...(mergedMeta !== undefined ? { metadata: mergedMeta as Prisma.InputJsonValue } : {}),
       },
     });
   }

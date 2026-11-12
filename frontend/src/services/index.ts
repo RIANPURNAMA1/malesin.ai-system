@@ -1,5 +1,5 @@
 import api from './api';
-import { Post, Message, Channel, Contact, Label, AnalyticsOverview, PaginatedResponse, ApiResponse, AiAgent, AiProvider, AiProviderInfo, AiKnowledge, AiMedia, AiMediaTrigger, AiTestResponseResult } from '../types';
+import { Post, Message, Channel, Contact, Label, AnalyticsOverview, PaginatedResponse, ApiResponse, AiAgent, AiProvider, AiProviderInfo, AiKnowledge, AiKnowledgeMedia, AiMedia, AiMediaTrigger, AiTestResponseResult } from '../types';
 
 export const messageService = {
   list: (conversationId: string, page = 1, limit = 50) =>
@@ -77,6 +77,11 @@ export interface AiAgentPayload {
   model: string;
   apiKey?: string;
   systemPrompt?: string;
+  welcomeMessage?: string | null;
+  communicationStyle?: string | null;
+  conversationFlow?: string | null;
+  communicationRules?: string | null;
+  additionalInstructions?: { id: string; content: string; pipeline?: string | null }[];
   temperature?: number;
   maxTokens?: number;
   isActive?: boolean;
@@ -88,6 +93,11 @@ export interface AiTestResponsePayload {
   model?: string;
   apiKey?: string;
   systemPrompt?: string;
+  welcomeMessage?: string;
+  communicationStyle?: string;
+  conversationFlow?: string;
+  communicationRules?: string;
+  additionalInstructions?: { id: string; content: string; pipeline?: string | null }[];
   temperature?: number;
   maxTokens?: number;
   message: string;
@@ -113,6 +123,17 @@ export const aiAgentService = {
   delete: (id: string) => api.delete(`/ai-agents/${id}`),
 };
 
+/** Upload gambar lepas → link URL publik (untuk ditempel di Knowledge / Pesan Sambutan). */
+export const knowledgeFileService = {
+  upload: (files: File[]) => {
+    const fd = new FormData();
+    files.forEach(file => fd.append('files', file));
+    return api
+      .post<ApiResponse<{ filename: string; url: string }[]>>('/knowledge-files', fd)
+      .then(r => r.data.data);
+  },
+};
+
 export const knowledgeService = {
   list: (agentId: string) => api.get<ApiResponse<AiKnowledge[]>>(`/ai-agents/${agentId}/knowledge`).then(r => r.data.data),
   create: (agentId: string, payload: { title: string; content: string }) =>
@@ -120,6 +141,30 @@ export const knowledgeService = {
   update: (agentId: string, id: string, payload: { title?: string; content?: string }) =>
     api.put<ApiResponse<AiKnowledge>>(`/ai-agents/${agentId}/knowledge/${id}`, payload).then(r => r.data.data),
   delete: (agentId: string, id: string) => api.delete(`/ai-agents/${agentId}/knowledge/${id}`),
+
+  /** Upload satu/beberapa gambar untuk knowledge yang sudah tersimpan. */
+  addMedia: (agentId: string, knowledgeId: string, files: File[], altTexts?: string[]) => {
+    const fd = new FormData();
+    files.forEach(file => fd.append('files', file));
+    if (altTexts?.length) fd.append('altTexts', JSON.stringify(altTexts));
+    return api
+      .post<ApiResponse<AiKnowledgeMedia[]>>(`/ai-agents/${agentId}/knowledge/${knowledgeId}/media`, fd)
+      .then(r => r.data.data);
+  },
+  updateMedia: (
+    agentId: string,
+    knowledgeId: string,
+    mediaId: string,
+    payload: { altText?: string | null; description?: string | null }
+  ) =>
+    api
+      .put<ApiResponse<AiKnowledgeMedia>>(
+        `/ai-agents/${agentId}/knowledge/${knowledgeId}/media/${mediaId}`,
+        payload
+      )
+      .then(r => r.data.data),
+  deleteMedia: (agentId: string, knowledgeId: string, mediaId: string) =>
+    api.delete(`/ai-agents/${agentId}/knowledge/${knowledgeId}/media/${mediaId}`),
 };
 
 export interface AiMediaPayload {

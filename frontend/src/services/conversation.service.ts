@@ -16,6 +16,10 @@ export const conversationService = {
   updateStatus: (id: string, status: string) =>
     api.patch(`/conversations/${id}/status`, { status }).then(r => r.data),
 
+  /** Jeda (true) / lanjutkan (false) balasan AI di percakapan ini. */
+  setAiPaused: (id: string, paused: boolean) =>
+    api.post(`/conversations/${id}/ai`, { paused }).then(r => r.data),
+
   assign: (id: string, userId: string) =>
     api.post(`/conversations/${id}/assign`, { userId }).then(r => r.data),
 
@@ -24,6 +28,9 @@ export const conversationService = {
 
   removeLabel: (id: string, labelId: string) =>
     api.delete(`/conversations/${id}/labels/${labelId}`).then(r => r.data),
+
+  markUnread: (id: string) =>
+    api.post(`/conversations/${id}/unread`).then(r => r.data),
 
   markRead: (id: string) =>
     api.post(`/conversations/${id}/read`).then(r => r.data),

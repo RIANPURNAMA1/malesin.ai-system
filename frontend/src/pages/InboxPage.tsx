@@ -48,7 +48,7 @@ export default function InboxPage() {
   return (
     <div className="h-full flex flex-col lg:flex-row">
       {/* Channel sidebar - desktop only */}
-      <div className="hidden lg:block">
+      <div className="hidden lg:block lg:h-full">
         <ChannelSidebar />
       </div>
 

@@ -192,7 +192,7 @@ async function processIgMessage(channel: any, senderId: string, message: any) {
   io.to(`company:${channel.companyId}`).emit('conversation:updated', fullConversation);
   io.to(`company:${channel.companyId}`).emit('notification', {
     type: 'NEW_MESSAGE',
-    title: `New message from ${contact.name}`,
+    title: `Pesan baru dari ${contact.name}`,
     body: content || 'Media message',
     conversationId: conversation.id,
   });

@@ -15,4 +15,11 @@ export const authService = {
   logout: () => api.post('/auth/logout'),
 
   profile: () => api.get<ApiResponse<User>>('/auth/profile').then(r => r.data.data),
+
+  updateProfile: (payload: { name?: string; email?: string }) =>
+    api.put<ApiResponse<User>>('/auth/profile', payload).then(r => r.data.data),
+
+  /** Mengembalikan token baru; sesi di perangkat lain berakhir. */
+  changePassword: (payload: { currentPassword: string; newPassword: string }) =>
+    api.put<ApiResponse<{ accessToken: string; refreshToken: string }>>('/auth/password', payload).then(r => r.data.data),
 };

@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { ConversationService } from './conversation.service';
 import { success, paginate } from '../../utils/response';
 import { AuthRequest } from '../../types/express.d';
+import { setAiPaused } from '../ai-agent/ai-takeover';
 
 const conversationService = new ConversationService();
 
@@ -25,8 +26,17 @@ export class ConversationController {
 
   async updateStatus(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const data = await conversationService.updateStatus(req.user!.companyId, req.params.id, req.body.status);
+      const data = await conversationService.updateStatus(req.user!.companyId, req.params.id, req.body.status, req.user!.userId);
       success(res, data, 'Status updated');
+    } catch (err) { next(err); }
+  }
+
+  /** Jeda / lanjutkan balasan AI untuk percakapan ini. Body: { paused: boolean } */
+  async setAiPaused(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await conversationService.findById(req.user!.companyId, req.params.id);
+      const aiPausedUntil = await setAiPaused(req.params.id, !!req.body.paused);
+      success(res, { aiPausedUntil }, req.body.paused ? 'AI dijeda' : 'AI diaktifkan');
     } catch (err) { next(err); }
   }
 
@@ -34,6 +44,13 @@ export class ConversationController {
     try {
       const data = await conversationService.assignAgent(req.user!.companyId, req.params.id, req.body.userId);
       success(res, data, 'Agent assigned');
+    } catch (err) { next(err); }
+  }
+
+  async markUnread(req: AuthRequest, res: Response, next: NextFunction) {
+    try {
+      await conversationService.markUnread(req.user!.companyId, req.params.id);
+      success(res, null, 'Ditandai belum dibaca');
     } catch (err) { next(err); }
   }
 

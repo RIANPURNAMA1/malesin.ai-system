@@ -4,6 +4,7 @@ import { contactService } from '../contact/contact.routes';
 import { ConversationService } from '../conversation/conversation.service';
 import { getIO } from '../../sockets/socket.server';
 import logger from '../../utils/logger';
+import { aiAutoReplyService } from '../ai-agent/ai-auto-reply.service';
 
 const conversationService = new ConversationService();
 
@@ -157,8 +158,29 @@ async function processIncomingMessage(channelId: string, companyId: string, waMs
   io.to(`company:${companyId}`).emit('conversation:updated', fullConversation);
   io.to(`company:${companyId}`).emit('notification', {
     type: 'NEW_MESSAGE',
-    title: `New message from ${contact.name}`,
+    title: `Pesan baru dari ${contact.name}`,
     body: content || 'Media message',
     conversationId: conversation.id,
   });
+
+  // Auto-reply AI Agent (hanya pesan teks masuk, bukan grup). Dijalankan di
+  // background supaya webhook tetap cepat walaupun provider AI lambat.
+  void import('../crm/pipeline.automation')
+    .then(m => m.onInbound({ companyId, contactId: contact.id, conversationId: conversation.id, text: content }))
+    .catch(() => undefined);
+
+  if (waMsg.type === 'text' && content?.trim()) {
+    // Keyword STOP/MULAI ditangani sistem broadcast; AI tidak ikut membalas.
+    const { handleBroadcastInbound } = await import('../broadcast/broadcast.inbound');
+    if (await handleBroadcastInbound({ companyId, contactId: contact.id, conversationId: conversation.id, text: content })) return;
+    void aiAutoReplyService
+      .maybeAutoReply({
+        companyId,
+        channelId,
+        conversationId: conversation.id,
+        text: content,
+        remoteJid: waMsg.from,
+      })
+      .catch(err => logger.error('AI auto-reply failed', err));
+  }
 }
