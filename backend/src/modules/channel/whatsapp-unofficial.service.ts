@@ -43,14 +43,20 @@ const conversationService = new ConversationService();
 const AUTH_DIR = path.resolve(process.cwd(), 'wa_auth_unofficial');
 const QR_TIMEOUT = 60000;
 
+type WaConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+
 interface ClientInstance {
   sock: WASocket;
   channelId: string;
   companyId: string;
+<<<<<<< HEAD
   userId: string;
   /** True kalau socket ditutup sengaja (logout / reconnect manual) -> jangan auto-reconnect. */
   manualClose: boolean;
   reconnectAttempts: number;
+=======
+  status: WaConnectionStatus;
+>>>>>>> origin/main
 }
 
 interface PersistedSession {
@@ -365,6 +371,7 @@ class WhatsAppUnofficialService {
         markOnlineOnConnect: true,
       });
 
+<<<<<<< HEAD
       const instance: ClientInstance = {
         sock,
         channelId,
@@ -373,6 +380,9 @@ class WhatsAppUnofficialService {
         manualClose: false,
         reconnectAttempts: isReconnect ? 1 : 0,
       };
+=======
+      const instance: ClientInstance = { sock, channelId, companyId, status: 'connecting' };
+>>>>>>> origin/main
       this.clients.set(channelId, instance);
 
       sock.ev.on('connection.update', (update) => {
@@ -410,6 +420,7 @@ class WhatsAppUnofficialService {
 
         if (connection === 'open') {
           clearTimeout(timeout);
+<<<<<<< HEAD
           instance.reconnectAttempts = 0;
 
           const jid = sock.user?.id || null;
@@ -421,6 +432,9 @@ class WhatsAppUnofficialService {
             connectedAt: new Date().toISOString(),
           });
 
+=======
+          instance.status = 'connected';
+>>>>>>> origin/main
           io.to(`user:${userId}`).emit('wa-unofficial:ready', { channelId });
           io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'connected' });
           logger.info(`WhatsApp Unofficial ready: ${channelId} (${phone || 'unknown'})`);
@@ -443,10 +457,32 @@ class WhatsAppUnofficialService {
           const isRestartRequired = statusCode === DisconnectReason.restartRequired;
           const isLoggedOut = statusCode === DisconnectReason.loggedOut;
 
+<<<<<<< HEAD
           // Kalau socket ini sudah digantikan socket baru (mis. reconnect manual),
           // abaikan event close-nya supaya tidak menimpa status "connected".
           if (this.clients.get(channelId) !== instance && !isLoggedOut) {
             logger.info(`Abaikan close dari socket lama: ${channelId}`);
+=======
+          if (!isRestartRequired) {
+            instance.status = 'disconnected';
+            this.clients.delete(channelId);
+            io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
+          } else {
+            // Pairing berhasil (515) / server minta restart: masih proses menyambung.
+            instance.status = 'connecting';
+          }
+
+          if (statusCode === DisconnectReason.loggedOut) {
+            // Sesi tidak valid lagi: buang creds supaya scan berikutnya bersih.
+            try { rmSync(authDir, { recursive: true, force: true }); } catch {}
+          }
+
+          if (isRestartRequired) {
+            logger.info(`Pairing OK, reconnect otomatis: ${channelId}`);
+            void this.start(channelId, companyId, userId, true).catch((err) =>
+              logger.error('Auto reconnect setelah pairing gagal', err)
+            );
+>>>>>>> origin/main
             settle({ qr: null });
             return;
           }
@@ -907,11 +943,18 @@ class WhatsAppUnofficialService {
     return { id: sent?.key?.id || '' };
   }
 
+<<<<<<< HEAD
   getStatus(channelId: string) {
     if (this.connecting.has(channelId)) return 'connecting';
+=======
+  getStatus(channelId: string): WaConnectionStatus {
+>>>>>>> origin/main
     const instance = this.clients.get(channelId);
     if (!instance) return 'disconnected';
-    return instance.sock.ws?.isOpen ? 'connected' : 'connecting';
+    // Jangan pakai sock.ws.isOpen: saat pairing (QR belum di-scan) WebSocket ke
+    // server WhatsApp sudah terbuka, jadi statusnya keliru "connected" dan QR
+    // langsung hilang. Pakai state dari event connection.update.
+    return instance.status;
   }
 
   async logout(channelId: string) {
