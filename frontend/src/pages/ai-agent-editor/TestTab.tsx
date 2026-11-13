@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Send, BookOpen, CheckCircle2, AlertCircle, Image, Loader2, Zap, Bot, RotateCcw, Sparkles } from 'lucide-react';
 import type { AgentEditor } from './useAgentEditor';
 import type { ChatTurn } from './types';
@@ -17,24 +17,60 @@ const STYLES = `
 /** Batas gelembung chat per sesi uji (user + AI). Setelah penuh, harus reset. */
 const MAX_TURNS = 20;
 
-/** Menampilkan teks huruf demi huruf, lalu memanggil onDone. */
+/** Potongan teks berformat WhatsApp: *tebal*, _miring_, ~coret~, ```kode```. */
+type Seg = { text: string; cls?: string };
+const WA_RE = /```([\s\S]+?)```|(?<![\w*])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![\w*])|(?<![\w_])_(?!\s)([^_\n]+?)(?<!\s)_(?![\w_])|(?<![\w~])~(?!\s)([^~\n]+?)(?<!\s)~(?![\w~])/g;
+
+function parseWa(text: string): Seg[] {
+  const segs: Seg[] = [];
+  let last = 0;
+  for (const m of text.matchAll(WA_RE)) {
+    if (m.index! > last) segs.push({ text: text.slice(last, m.index) });
+    if (m[1] !== undefined) segs.push({ text: m[1], cls: 'rounded bg-gray-100 px-1 font-mono text-[13px]' });
+    else if (m[2] !== undefined) segs.push({ text: m[2], cls: 'font-semibold text-gray-900' });
+    else if (m[3] !== undefined) segs.push({ text: m[3], cls: 'italic' });
+    else segs.push({ text: m[4], cls: 'line-through' });
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) segs.push({ text: text.slice(last) });
+  return segs;
+}
+
+/** Render segmen; bila `limit` diisi, hanya `limit` karakter pertama yang tampil. */
+function renderSegs(segs: Seg[], limit = Infinity) {
+  let left = limit;
+  return segs.map((s, i) => {
+    if (left <= 0) return null;
+    const t = s.text.slice(0, left);
+    left -= t.length;
+    return s.cls ? <span key={i} className={s.cls}>{t}</span> : <span key={i}>{t}</span>;
+  });
+}
+
+function WaText({ text }: { text: string }) {
+  return <>{renderSegs(parseWa(text))}</>;
+}
+
+/** Menampilkan teks huruf demi huruf (format sudah rapi sejak awal), lalu memanggil onDone. */
 function Typewriter({ text, onTick, onDone }: { text: string; onTick: () => void; onDone: () => void }) {
+  const segs = useMemo(() => parseWa(text), [text]);
+  const total = useMemo(() => segs.reduce((a, s) => a + s.text.length, 0), [segs]);
   const [n, setN] = useState(0);
   useEffect(() => {
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setN(text.length); onDone(); return; }
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setN(total); onDone(); return; }
     // Teks panjang dipercepat agar total animasi tetap ± 1,5 detik.
-    const step = Math.max(1, Math.ceil(text.length / 90));
+    const step = Math.max(1, Math.ceil(total / 90));
     const id = setInterval(() => {
       setN(v => {
-        const next = Math.min(text.length, v + step);
-        if (next >= text.length) { clearInterval(id); onDone(); }
+        const next = Math.min(total, v + step);
+        if (next >= total) { clearInterval(id); onDone(); }
         return next;
       });
     }, 16);
     return () => clearInterval(id);
-  }, [text]);
+  }, [total]);
   useEffect(onTick, [n]);
-  return <>{text.slice(0, n)}{n < text.length && <span className="tt-caret" />}</>;
+  return <>{renderSegs(segs, n)}{n < total && <span className="tt-caret" />}</>;
 }
 
 function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
@@ -176,7 +212,7 @@ export default function TestTab({ ed }: { ed: AgentEditor }) {
               <div className={`max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-bl-md border px-4 py-2.5 text-sm shadow-sm ${turn.error ? 'border-red-100 bg-red-50 text-red-600' : 'border-gray-100 bg-white text-gray-800'}`}>
                 {turn.animate
                   ? <Typewriter text={turn.content} onTick={scrollToBottom} onDone={() => finishAnimation(i)} />
-                  : turn.content}
+                  : <WaText text={turn.content} />}
                 {!turn.animate && turn.usedKnowledge && turn.usedKnowledge.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1 border-t border-gray-100 pt-2">
                     {turn.usedKnowledge.map(k => (

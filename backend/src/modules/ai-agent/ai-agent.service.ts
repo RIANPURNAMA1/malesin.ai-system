@@ -9,6 +9,10 @@ import { aiProviderService } from '../ai-provider/ai-provider.service';
 import { knowledgeService, KnowledgeWithMedia } from '../knowledge/knowledge.service';
 import { aiMediaService, MediaAttachment } from '../ai-media/ai-media.service';
 import { parseAiReply, AiReplyMessage, AllowedMedia, extractImageUrls, splitImageUrls } from './ai-reply';
+import { extractCustomerData, buildConversationStateContext } from './ai-conversation-context';
+
+/** Batas riwayat chat uji yang dikirim ke AI (cukup untuk konteks, hemat token). */
+const TEST_HISTORY_LIMIT = 20;
 
 export interface AdditionalInstruction {
   id: string;
@@ -60,6 +64,8 @@ export interface TestResponseDto {
   useMedia?: boolean;
   /** Knowledge yang belum disimpan (dipakai saat menguji sebelum agent dibuat). */
   knowledge?: { title: string; content: string }[];
+  /** Riwayat chat uji sebelumnya (tanpa pesan terbaru) agar AI ingat konteks. */
+  history?: { role: string; content: string }[];
 }
 
 export interface AiReplyOptions {
@@ -342,6 +348,16 @@ export class AiAgentService {
     const temperature = dto.temperature ?? agent?.temperature ?? 0.7;
     const maxTokens = dto.maxTokens ?? agent?.maxTokens ?? 1024;
 
+    // Samakan dengan auto-reply WhatsApp: kirim riwayat + data pelanggan yang
+    // sudah diisi, supaya AI tidak menanyakan ulang data diri di tiap pesan.
+    const history: AiChatMessage[] = (Array.isArray(dto.history) ? dto.history : [])
+      .filter(m => (m?.role === 'user' || m?.role === 'assistant') && typeof m.content === 'string' && m.content.trim())
+      .slice(-TEST_HISTORY_LIMIT)
+      .map(m => ({ role: m.role as 'user' | 'assistant', content: m.content.slice(0, 4000) }));
+    const conversationContext = buildConversationStateContext({
+      customerData: extractCustomerData(history, dto.message),
+    });
+
     return this.generateReply({
       companyId,
       agentId: agent?.id,
@@ -355,6 +371,8 @@ export class AiAgentService {
       useKnowledge: dto.useKnowledge,
       useMedia: dto.useMedia,
       pendingKnowledge: dto.knowledge,
+      history,
+      conversationContext: conversationContext || undefined,
       communicationStyle: dto.communicationStyle !== undefined ? dto.communicationStyle : agent?.communicationStyle,
       conversationFlow: dto.conversationFlow !== undefined ? dto.conversationFlow : agent?.conversationFlow,
       communicationRules: dto.communicationRules !== undefined ? dto.communicationRules : agent?.communicationRules,

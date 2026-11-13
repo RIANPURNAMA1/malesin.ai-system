@@ -82,12 +82,31 @@ export class ChannelService {
       const { whatsAppUnofficialService } = await import('./whatsapp-unofficial.service');
       await whatsAppUnofficialService.removeSession(channelId);
     }
-    // Hapus data terkait dulu biar ga kena FK constraint
-    await prisma.conversationLabel.deleteMany({ where: { conversation: { channelId } } });
-    await prisma.assignment.deleteMany({ where: { conversation: { channelId } } });
-    await prisma.message.deleteMany({ where: { conversation: { channelId } } });
-    await prisma.conversation.deleteMany({ where: { channelId } });
-    await prisma.post.deleteMany({ where: { channelId } });
-    await prisma.channel.delete({ where: { id: channelId } });
+    // Kontak dipakai bersama antar kanal (unik per nomor). Yang dihapus hanya kontak
+    // yang SELURUH percakapannya ada di kanal ini; kontak yang juga chat lewat kanal
+    // lain tetap disimpan agar riwayat di kanal lain tidak rusak.
+    const contactIds = (await prisma.conversation.findMany({
+      where: { channelId },
+      select: { contactId: true },
+      distinct: ['contactId'],
+    })).map(c => c.contactId);
+    const sharedIds = new Set((await prisma.conversation.findMany({
+      where: { contactId: { in: contactIds }, channelId: { not: channelId } },
+      select: { contactId: true },
+      distinct: ['contactId'],
+    })).map(c => c.contactId));
+    const exclusiveContactIds = contactIds.filter(id => !sharedIds.has(id));
+
+    // Hapus data terkait dulu biar ga kena FK constraint (atomik: semua atau tidak sama sekali).
+    await prisma.$transaction([
+      prisma.conversationLabel.deleteMany({ where: { conversation: { channelId } } }),
+      prisma.assignment.deleteMany({ where: { conversation: { channelId } } }),
+      prisma.message.deleteMany({ where: { conversation: { channelId } } }),
+      prisma.conversation.deleteMany({ where: { channelId } }),
+      prisma.post.deleteMany({ where: { channelId } }),
+      // Deal & penerima broadcast milik kontak ikut terhapus (onDelete: Cascade).
+      prisma.contact.deleteMany({ where: { companyId, id: { in: exclusiveContactIds } } }),
+      prisma.channel.delete({ where: { id: channelId } }),
+    ]);
   }
 }

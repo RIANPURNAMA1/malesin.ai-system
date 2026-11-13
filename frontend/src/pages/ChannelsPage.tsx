@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { useSocketStore } from '../store/socket.store';
 import WhatsAppConnectModal from '../components/WhatsAppConnectModal';
 import WhatsAppUnofficialConnectModal from '../components/WhatsAppUnofficialConnectModal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import TikTokConnectModal from '../components/TikTokConnectModal';
 import TikTokIcon from '../components/TikTokIcon';
 
@@ -178,6 +179,8 @@ export default function ChannelsPage() {
   const [showTikTokModal, setShowTikTokModal] = useState(false);
   const [deviceStatus, setDeviceStatus] = useState<Record<string, string>>({});
   const [settingsChannel, setSettingsChannel] = useState<Channel | null>(null);
+  const [reconnectChannel, setReconnectChannel] = useState<{ id: string; name: string } | null>(null);
+  const [deleteChannel, setDeleteChannel] = useState<{ id: string; name: string } | null>(null);
 
   const { data: channels, isLoading } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
   const { data: agentsData } = useQuery({ queryKey: ['ai-agents'], queryFn: aiAgentService.list });
@@ -220,18 +223,21 @@ export default function ChannelsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: channelService.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['channels'] }); toast.success('Platform disconnected'); },
-  });
-
-  const reconnectMutation = useMutation({
-    mutationFn: whatsappUnofficialService.reconnect,
-    onSuccess: () => toast.success('Reconnecting device...'),
-    onError: (err: any) => toast.error(err?.response?.data?.message || 'Reconnect failed'),
+    onSuccess: () => {
+      // Chat & kontak ikut terhapus: segarkan semua daftar yang menampilkannya.
+      ['channels', 'conversations', 'contacts', 'conv-manage', 'conv-stats'].forEach(key => qc.invalidateQueries({ queryKey: [key] }));
+      setDeleteChannel(null);
+      toast.success('Perangkat beserta chat & kontaknya dihapus');
+    },
+    onError: (e: { response?: { data?: { message?: string } } }) => toast.error(e.response?.data?.message || 'Gagal menghapus perangkat'),
   });
 
   const logoutMutation = useMutation({
     mutationFn: whatsappUnofficialService.logout,
-    onSuccess: () => toast.success('Device logged out'),
+    onSuccess: (_d, id) => {
+      setDeviceStatus(prev => ({ ...prev, [id]: 'disconnected' }));
+      toast.success('Perangkat logout. Klik "Hubungkan ulang" untuk scan QR lagi.');
+    },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Logout failed'),
   });
 
@@ -385,8 +391,7 @@ export default function ChannelsPage() {
                         {ch.type === 'WHATSAPP_UNOFFICIAL' ? (
                           <>
                             <button
-                              onClick={() => reconnectMutation.mutate(ch.id)}
-                              disabled={reconnectMutation.isPending}
+                              onClick={() => setReconnectChannel({ id: ch.id, name: ch.name })}
                               className={ICON_BTN}
                               title="Hubungkan ulang"
                             >
@@ -401,9 +406,7 @@ export default function ChannelsPage() {
                               <LogOut className="h-4 w-4" />
                             </button>
                             <button
-                              onClick={() => {
-                                if (window.confirm('Delete this WhatsApp device?')) deleteMutation.mutate(ch.id);
-                              }}
+                              onClick={() => setDeleteChannel({ id: ch.id, name: ch.name })}
                               className={`${ICON_BTN} hover:text-danger`}
                               title="Hapus perangkat"
                             >
@@ -467,6 +470,28 @@ export default function ChannelsPage() {
       )}
       {showWhatsAppModal && <WhatsAppConnectModal onClose={() => setShowWhatsAppModal(false)} />}
       {showWhatsAppUnofficialModal && <WhatsAppUnofficialConnectModal onClose={() => setShowWhatsAppUnofficialModal(false)} />}
+      <ConfirmDialog
+        open={!!deleteChannel}
+        title={`Hapus perangkat "${deleteChannel?.name ?? ''}"?`}
+        description="Data berikut akan dihapus permanen dan tidak bisa dikembalikan:"
+        items={[
+          'Semua chat & pesan dari perangkat ini',
+          'Kontak yang hanya chat lewat perangkat ini, beserta deal di Pipeline',
+          'Sesi login WhatsApp di perangkat ini',
+        ]}
+        note="Kontak yang juga pernah chat lewat kanal lain tetap disimpan."
+        confirmText={deleteChannel?.name}
+        confirmLabel="Hapus permanen"
+        loading={deleteMutation.isPending}
+        onConfirm={() => deleteChannel && deleteMutation.mutate(deleteChannel.id)}
+        onClose={() => setDeleteChannel(null)}
+      />
+      {reconnectChannel && (
+        <WhatsAppUnofficialConnectModal
+          reconnect={reconnectChannel}
+          onClose={() => { setReconnectChannel(null); waUnofficialChannels(); }}
+        />
+      )}
       {showTikTokModal && <TikTokConnectModal onClose={() => setShowTikTokModal(false)} />}
       {settingsChannel && <ChannelSettingsModal channel={settingsChannel} onClose={() => setSettingsChannel(null)} />}
     </div>

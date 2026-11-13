@@ -191,6 +191,24 @@ function parseJsonMessages(
 }
 
 /**
+ * LLM sering membalas dengan Markdown (`**tebal**`, `### judul`), padahal WhatsApp
+ * memakai `*tebal*`, `_miring_`, `~coret~`. Konversi agar tidak muncul bintang ganda.
+ */
+export function toWhatsAppFormat(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '*$1*')            // **tebal** → *tebal*
+    .replace(/__(.+?)__/g, '*$1*')                // __tebal__ → *tebal*
+    .replace(/~~(.+?)~~/g, '~$1~')                // ~~coret~~ → ~coret~
+    .replace(/^[ \t]*#{1,6}[ \t]+(.+?)[ \t#]*$/gm, '*$1*') // ### Judul → *Judul*
+    .replace(/^([ \t]*)\*[ \t]+/gm, '$1- ')        // "* item" → "- item" (bukan tebal)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '$1: $2') // [teks](url) → teks: url
+    .replace(/\*\*+/g, '*')                       // sisa bintang ganda
+    .replace(/[ \t]+$/gm, '')                     // spasi di akhir baris (line break Markdown)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
  * Ubah teks mentah dari LLM menjadi daftar pesan siap kirim (TEXT/IMAGE).
  * Semua gambar divalidasi terhadap `allowed` (data dari database).
  */
@@ -211,6 +229,11 @@ export function parseAiReply(text: string, allowed: AllowedMedia[]): ParsedAiRep
     if (msg.type === 'image') {
       if (seenImages.has(msg.mediaId)) continue;
       seenImages.add(msg.mediaId);
+    }
+    if (msg.type === 'text') {
+      const content = toWhatsAppFormat(msg.content);
+      if (content) deduped.push({ ...msg, content });
+      continue;
     }
     deduped.push(msg);
   }

@@ -104,6 +104,8 @@ export interface AiTestResponsePayload {
   useKnowledge?: boolean;
   useMedia?: boolean;
   knowledge?: { title: string; content: string }[];
+  /** Riwayat chat uji sebelumnya agar AI ingat konteks (mis. data diri). */
+  history?: { role: 'user' | 'assistant'; content: string }[];
 }
 
 export const aiAgentService = {

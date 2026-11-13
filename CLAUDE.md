@@ -24,3 +24,4 @@ Jangan membuka file yang tidak relevan dan jangan mengulang pembacaan file yang 
 - Batasi output terminal.
 - Jangan membuat dokumentasi berlebihan.
 - Prioritaskan implementasi yang efisien dan maintainable.
+

@@ -221,8 +221,9 @@ export function useAgentEditor() {
   });
 
   const testResponseMutation = useMutation({
-    mutationFn: (message: string) =>
+    mutationFn: ({ message, history }: { message: string; history: { role: 'user' | 'assistant'; content: string }[] }) =>
       aiAgentService.testResponse({
+        history,
         agentId,
         // Selalu pakai provider yang sedang dipilih di form. Kalau hanya mengandalkan
         // provider tersimpan, ganti provider tanpa simpan akan mengetes model baru
@@ -396,10 +397,15 @@ export function useAgentEditor() {
     }
     if (testResponseMutation.isPending) return;
     const message = testMessage.trim();
+    // Riwayat sebelumnya ikut dikirim agar AI ingat konteks (seperti di WhatsApp).
+    // Balasan error tidak ikut karena bukan jawaban AI.
+    const history = chat
+      .filter(t => !t.error && t.content.trim())
+      .map(t => ({ role: t.role, content: t.content }));
     // Pesan user tampil langsung, lalu indikator "mengetik" sampai AI membalas.
     setChat(c => [...c, { role: 'user', content: message }]);
     setTestMessage('');
-    testResponseMutation.mutate(message);
+    testResponseMutation.mutate({ message, history });
   };
 
   function resetKbForm() {

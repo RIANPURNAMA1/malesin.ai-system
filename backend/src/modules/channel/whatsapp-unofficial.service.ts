@@ -1007,16 +1007,28 @@ class WhatsAppUnofficialService {
     return instance.status;
   }
 
+  /**
+   * Logout sungguhan: lepas perangkat dari WhatsApp (hilang dari "Perangkat tertaut"
+   * di HP) dan hapus kredensial, sehingga "Hubungkan ulang" wajib scan QR lagi.
+   */
   async logout(channelId: string) {
     this.clearReconnect(channelId);
     this.presenceSubscribed.delete(channelId);
     const instance = this.clients.get(channelId);
     if (instance) {
       instance.manualClose = true;
-      try { instance.sock.end(new Error('Logged out')); } catch {}
       this.clients.delete(channelId);
+      try {
+        await Promise.race([instance.sock.logout('Logged out'), new Promise(r => setTimeout(r, 5000))]);
+      } catch {
+        // Socket belum login / sudah putus: cukup tutup.
+      }
+      try { instance.sock.end(new Error('Logged out')); } catch {}
     }
+    try { rmSync(this.authDir(channelId), { recursive: true, force: true }); } catch {}
     await this.persistSession(channelId, { status: 'disconnected' });
+    const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { companyId: true } });
+    if (channel) getIO().to(`company:${channel.companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });
   }
 
   /** Hapus sesi device (dipakai saat channel dihapus) termasuk kredensial di disk. */
