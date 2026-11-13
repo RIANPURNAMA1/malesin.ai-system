@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import ChatMenu from './ChatMenu';
-import { Send, Paperclip, CheckCheck, Check, Clock, X, UserPlus, ChevronDown, ChevronLeft, Bot, Loader2 } from 'lucide-react';
+import { Send, Paperclip, CheckCheck, Check, Clock, X, UserPlus, ChevronDown, ChevronLeft, Bot, Loader2, MessageSquareOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -124,6 +124,7 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
 
   if (!conversation) return <div className="flex-1 flex items-center justify-center bg-gray-50"><Spinner /></div>;
   const conv = conversation as Conversation;
+  const contactAiDisabled = (conv.contact as any).metadata?.aiDisabled === true;
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
@@ -142,6 +143,16 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
         </div>
         <div className="flex items-center gap-2">
           {(() => {
+            if (contactAiDisabled) {
+              return (
+                <span
+                  title="Nomor ini dikecualikan dari AI. Ubah lewat menu ⋮ atau AI Agents → Nomor tanpa AI."
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-gray-600"
+                >
+                  <MessageSquareOff className="w-3.5 h-3.5" /> Tanpa AI
+                </span>
+              );
+            }
             const until = (conv as any).metadata?.aiPausedUntil as string | null | undefined;
             const aiPaused = until === 'manual' || (!!until && new Date(until).getTime() > Date.now());
             const title = aiPaused
@@ -165,6 +176,7 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
           <ChatMenu
             conversationId={conversationId}
             contactId={conv.contact.id}
+            aiDisabled={contactAiDisabled}
             phone={((conv.contact as any).metadata?.whatsappId as string || conv.contact.phone || '').replace(/@(c\.us|s\.whatsapp\.net|lid|g\.us|broadcast)$/, '')}
             onOpenDetail={onOpenDetail}
           />

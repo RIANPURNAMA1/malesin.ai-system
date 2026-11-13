@@ -202,6 +202,10 @@ class AiAutoReplyService {
       where: { id: input.conversationId },
       select: { metadata: true, contact: { select: { phone: true, metadata: true } } },
     });
+    // Nomor yang dikecualikan dari AI (pengaturan per kontak, berlaku di semua kanal).
+    if ((conversation?.contact.metadata as { aiDisabled?: boolean } | null)?.aiDisabled === true) {
+      return { replied: false, reason: 'contact-excluded', imagesSent: 0, imagesFailed: 0 };
+    }
     if (isAiPaused(conversation?.metadata)) {
       return { replied: false, reason: 'human-takeover', imagesSent: 0, imagesFailed: 0 };
     }

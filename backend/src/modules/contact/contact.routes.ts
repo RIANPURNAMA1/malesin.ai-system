@@ -48,6 +48,40 @@ class ContactService {
     await this.findById(companyId, id);
     return prisma.contact.update({ where: { id }, data });
   }
+
+  // --- Nomor tanpa AI: contact.metadata.aiDisabled = true ---
+
+  listAiExcluded(companyId: string) {
+    return prisma.contact.findMany({
+      where: { companyId, metadata: { path: '$.aiDisabled', equals: true } },
+      select: { id: true, name: true, phone: true, metadata: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async setAiDisabled(companyId: string, id: string, disabled: boolean) {
+    const contact = await prisma.contact.findFirst({ where: { id, companyId }, select: { metadata: true } });
+    if (!contact) throw createError('Contact not found', 404);
+    const meta = { ...((contact.metadata as Record<string, unknown> | null) ?? {}), aiDisabled: disabled };
+    return prisma.contact.update({
+      where: { id },
+      data: { metadata: meta as Prisma.InputJsonValue },
+      select: { id: true, name: true, phone: true, metadata: true, updatedAt: true },
+    });
+  }
+
+  /** Tambah nomor ke daftar; kontak dibuat bila nomor belum pernah chat. */
+  async addAiExcluded(companyId: string, rawPhone: string, name?: string) {
+    let phone = String(rawPhone ?? '').replace(/\D/g, '');
+    if (phone.startsWith('0')) phone = `62${phone.slice(1)}`;
+    if (!/^\d{8,15}$/.test(phone)) throw createError('Nomor tidak valid (8–15 digit)', 400);
+    const existing = await prisma.contact.findUnique({ where: { companyId_phone: { companyId, phone } }, select: { id: true } });
+    const id = existing?.id ?? (await prisma.contact.create({
+      data: { companyId, phone, name: name?.trim() || phone, sourceChannel: 'MANUAL', totalMessages: 0 },
+      select: { id: true },
+    })).id;
+    return this.setAiDisabled(companyId, id, true);
+  }
 }
 
 const contactService = new ContactService();
@@ -63,6 +97,27 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
       sourceChannel: req.query.sourceChannel as string | undefined,
     });
     paginate(res, contacts, total, page, limit);
+  } catch (err) { next(err); }
+});
+
+router.get('/ai-excluded', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    success(res, await contactService.listAiExcluded(req.user!.companyId));
+  } catch (err) { next(err); }
+});
+
+router.post('/ai-excluded', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const data = await contactService.addAiExcluded(req.user!.companyId, req.body.phone, req.body.name);
+    success(res, data, 'Nomor ditambahkan, AI tidak akan membalas');
+  } catch (err) { next(err); }
+});
+
+router.patch('/:id/ai', async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const disabled = !!req.body.disabled;
+    const data = await contactService.setAiDisabled(req.user!.companyId, req.params.id, disabled);
+    success(res, data, disabled ? 'AI tidak akan membalas nomor ini' : 'AI kembali membalas nomor ini');
   } catch (err) { next(err); }
 });
 

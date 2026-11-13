@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Bot, Plus, Trash2, BookOpen } from 'lucide-react';
+import { Search, Bot, Plus, Trash2, BookOpen, MessageSquareOff } from 'lucide-react';
+import AiExcludedNumbersModal from '../components/AiExcludedNumbersModal';
 import toast from 'react-hot-toast';
 import { aiAgentService, channelService } from '../services/index';
 import { AiAgent, Channel } from '../types';
@@ -21,6 +22,7 @@ export default function AIAgentsPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
+  const [excludedOpen, setExcludedOpen] = useState(false);
 
   const { data: agents, isLoading } = useQuery({ queryKey: ['ai-agents'], queryFn: aiAgentService.list });
   const { data: channels = [] } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
@@ -57,10 +59,19 @@ export default function AIAgentsPage() {
             <h1 className="text-2xl font-bold text-gray-900">AI Agents</h1>
             <p className="text-sm text-gray-500">Chatbot AI untuk membalas pelanggan otomatis.</p>
           </div>
-          <button className="gradient-btn flex-shrink-0 px-4 py-2 text-sm" onClick={() => navigate('/ai-agents/new')}>
-            <Plus className="h-4 w-4" />Buat Agent
-          </button>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <button
+              onClick={() => setExcludedOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:border-primary/40 hover:text-primary"
+            >
+              <MessageSquareOff className="h-4 w-4" /><span className="hidden sm:inline">Nomor tanpa AI</span>
+            </button>
+            <button className="gradient-btn px-4 py-2 text-sm" onClick={() => navigate('/ai-agents/new')}>
+              <Plus className="h-4 w-4" />Buat Agent
+            </button>
+          </div>
         </div>
+        <AiExcludedNumbersModal open={excludedOpen} onClose={() => setExcludedOpen(false)} />
 
         <div className="relative mb-5">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />

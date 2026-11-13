@@ -1,22 +1,25 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { MoreVertical, KanbanSquare, PlusCircle, UserPlus, FileText, Copy, MailOpen, Loader2 } from 'lucide-react';
+import { MoreVertical, KanbanSquare, PlusCircle, UserPlus, FileText, Copy, MailOpen, Loader2, Bot, MessageSquareOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { conversationService } from '../../services/conversation.service';
+import { contactService } from '../../services/index';
 import { crmApi } from '../../pages/crm/api';
 
 interface Props {
   conversationId: string;
   contactId: string;
   phone: string;
+  /** Nomor ini dikecualikan dari AI (contact.metadata.aiDisabled). */
+  aiDisabled?: boolean;
   onOpenDetail: () => void;
 }
 
 const ITEM = 'flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-gray-700 transition hover:bg-gray-50 disabled:opacity-50';
 
 /** Menu ⋮ di header chat: CRM, assign, transkrip, salin nomor, tandai belum dibaca. */
-export default function ChatMenu({ conversationId, contactId, phone, onOpenDetail }: Props) {
+export default function ChatMenu({ conversationId, contactId, phone, aiDisabled = false, onOpenDetail }: Props) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
@@ -41,6 +44,16 @@ export default function ChatMenu({ conversationId, contactId, phone, onOpenDetai
       navigate('/inbox'); // tutup chat supaya tidak langsung terbaca lagi
     },
     onError: () => toast.error('Gagal menandai belum dibaca'),
+  });
+
+  const toggleContactAi = useMutation({
+    mutationFn: (disabled: boolean) => contactService.setAiDisabled(contactId, disabled),
+    onSuccess: (_r, disabled) => {
+      qc.invalidateQueries({ queryKey: ['conversation', conversationId] });
+      qc.invalidateQueries({ queryKey: ['ai-excluded'] });
+      toast.success(disabled ? 'AI tidak akan membalas nomor ini' : 'AI kembali membalas nomor ini');
+    },
+    onError: () => toast.error('Gagal mengubah pengaturan AI'),
   });
 
   const run = (fn: () => void) => () => { setOpen(false); fn(); };
@@ -76,6 +89,11 @@ export default function ChatMenu({ conversationId, contactId, phone, onOpenDetai
             </button>
             <button className={ITEM} disabled={!phone} onClick={run(copyPhone)}><Copy className="h-4 w-4 text-gray-400" />Salin nomor</button>
             <div className="my-1 border-t border-gray-100" />
+            <button className={ITEM} disabled={toggleContactAi.isPending} onClick={run(() => toggleContactAi.mutate(!aiDisabled))}>
+              {aiDisabled
+                ? <><Bot className="h-4 w-4 text-primary" />Izinkan AI membalas nomor ini</>
+                : <><MessageSquareOff className="h-4 w-4 text-amber-500" />Jangan balas nomor ini dengan AI</>}
+            </button>
             <button className={ITEM} disabled={markUnread.isPending} onClick={run(() => markUnread.mutate())}>
               <MailOpen className="h-4 w-4 text-gray-400" />Tandai belum dibaca
             </button>
