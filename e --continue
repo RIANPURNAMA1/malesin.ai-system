@@ -1,0 +1,149 @@
+[1mdiff --cc backend/src/modules/channel/whatsapp-unofficial.service.ts[m
+[1mindex 59bb0a4,5ef5a67..0000000[m
+[1m--- a/backend/src/modules/channel/whatsapp-unofficial.service.ts[m
+[1m+++ b/backend/src/modules/channel/whatsapp-unofficial.service.ts[m
+[36m@@@ -39,18 -39,37 +39,43 @@@[m [masync function resolveWAVersion(baileys[m
+  }[m
+  [m
+  const conversationService = new ConversationService();[m
+[31m- const AUTH_DIR = './wa_auth_unofficial';[m
+[32m+ // Sesi Baileys disimpan di disk (bukan di database), relatif terhadap cwd backend.[m
+[32m+ const AUTH_DIR = path.resolve(process.cwd(), 'wa_auth_unofficial');[m
+  const QR_TIMEOUT = 60000;[m
+  [m
+[32m +type WaConnectionStatus = 'connecting' | 'connected' | 'disconnected';[m
+[32m +[m
+  interface ClientInstance {[m
+    sock: WASocket;[m
+    channelId: string;[m
+    companyId: string;[m
+[32m++<<<<<<< HEAD[m
+[32m +  status: WaConnectionStatus;[m
+[32m++=======[m
+[32m+   userId: string;[m
+[32m+   /** True kalau socket ditutup sengaja (logout / reconnect manual) -> jangan auto-reconnect. */[m
+[32m+   manualClose: boolean;[m
+[32m+   reconnectAttempts: number;[m
+[32m++>>>>>>> 18db1b8 (perubahan)[m
+  }[m
+  [m
+[32m+ interface PersistedSession {[m
+[32m+   status?: string;[m
+[32m+   jid?: string | null;[m
+[32m+   phone?: string | null;[m
+[32m+   connectedAt?: string;[m
+[32m+   updatedAt?: string;[m
+[32m+ }[m
+[32m+ [m
+[32m+ // proto.WebMessageInfo.Status: 0=ERROR, 2=SERVER_ACK, 3=DELIVERY_ACK, 4=READ, 5=PLAYED[m
+[32m+ const WA_STATUS_MAP: Record<number, 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'> = {[m
+[32m+   0: 'FAILED',[m
+[32m+   2: 'SENT',[m
+[32m+   3: 'DELIVERED',[m
+[32m+   4: 'READ',[m
+[32m+   5: 'READ',[m
+[32m+ };[m
+[32m+ [m
+  function isLidJid(jid: string | null | undefined): boolean {[m
+    return !!jid && jid.endsWith('@lid');[m
+  }[m
+[36m@@@ -215,7 -365,14 +371,18 @@@[m [mclass WhatsAppUnofficialService [m
+          markOnlineOnConnect: true,[m
+        });[m
+  [m
+[32m++<<<<<<< HEAD[m
+[32m +      const instance: ClientInstance = { sock, channelId, companyId, status: 'connecting' };[m
+[32m++=======[m
+[32m+       const instance: ClientInstance = {[m
+[32m+         sock,[m
+[32m+         channelId,[m
+[32m+         companyId,[m
+[32m+         userId,[m
+[32m+         manualClose: false,[m
+[32m+         reconnectAttempts: isReconnect ? 1 : 0,[m
+[32m+       };[m
+[32m++>>>>>>> 18db1b8 (perubahan)[m
+        this.clients.set(channelId, instance);[m
+  [m
+        sock.ev.on('connection.update', (update) => {[m
+[36m@@@ -238,10 -410,20 +420,24 @@@[m
+  [m
+          if (connection === 'open') {[m
+            clearTimeout(timeout);[m
+[32m++<<<<<<< HEAD[m
+[32m +          instance.status = 'connected';[m
+[32m++=======[m
+[32m+           instance.reconnectAttempts = 0;[m
+[32m+ [m
+[32m+           const jid = sock.user?.id || null;[m
+[32m+           const phone = jid ? jidToPhone(jid) : null;[m
+[32m+           void this.persistSession(channelId, {[m
+[32m+             status: 'connected',[m
+[32m+             jid,[m
+[32m+             phone,[m
+[32m+             connectedAt: new Date().toISOString(),[m
+[32m+           });[m
+[32m+ [m
+[32m++>>>>>>> 18db1b8 (perubahan)[m
+            io.to(`user:${userId}`).emit('wa-unofficial:ready', { channelId });[m
+            io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'connected' });[m
+[31m-           logger.info(`WhatsApp Unofficial ready: ${channelId}`);[m
+[32m+           logger.info(`WhatsApp Unofficial ready: ${channelId} (${phone || 'unknown'})`);[m
+            settle({ qr: null }); // sudah login pakai creds lama, tidak perlu QR[m
+            void this.syncContacts(channelId, companyId);[m
+          }[m
+[36m@@@ -257,26 -441,12 +455,34 @@@[m
+            // Tanpa reconnect di sini, sesi berhenti tepat setelah scan QR dan[m
+            // tidak pernah sampai status "open"/terhubung.[m
+            const isRestartRequired = statusCode === DisconnectReason.restartRequired;[m
+[32m+           const isLoggedOut = statusCode === DisconnectReason.loggedOut;[m
+  [m
+[32m++<<<<<<< HEAD[m
+[32m +          if (!isRestartRequired) {[m
+[32m +            instance.status = 'disconnected';[m
+[32m +            this.clients.delete(channelId);[m
+[32m +            io.to(`company:${companyId}`).emit('wa-unofficial:status', { channelId, status: 'disconnected' });[m
+[32m +          } else {[m
+[32m +            // Pairing berhasil (515) / server minta restart: masih proses menyambung.[m
+[32m +            instance.status = 'connecting';[m
+[32m +          }[m
+[32m +[m
+[32m +          if (statusCode === DisconnectReason.loggedOut) {[m
+[32m +            // Sesi tidak valid lagi: buang creds supaya scan berikutnya bersih.[m
+[32m +            try { rmSync(authDir, { recursive: true, force: true }); } catch {}[m
+[32m +          }[m
+[32m +[m
+[32m +          if (isRestartRequired) {[m
+[32m +            logger.info(`Pairing OK, reconnect otomatis: ${channelId}`);[m
+[32m +            void this.start(channelId, companyId, userId, true).catch((err) =>[m
+[32m +              logger.error('Auto reconnect setelah pairing gagal', err)[m
+[32m +            );[m
+[32m++=======[m
+[32m+           // Kalau socket ini sudah digantikan socket baru (mis. reconnect manual),[m
+[32m+           // abaikan event close-nya supaya tidak menimpa status "connected".[m
+[32m+           if (this.clients.get(channelId) !== instance && !isLoggedOut) {[m
+[32m+             logger.info(`Abaikan close dari socket lama: ${channelId}`);[m
+[32m++>>>>>>> 18db1b8 (perubahan)[m
+              settle({ qr: null });[m
+              return;[m
+            }[m
+[36m@@@ -554,13 -907,11 +943,18 @@@[m
+      return { id: sent?.key?.id || '' };[m
+    }[m
+  [m
+[32m++<<<<<<< HEAD[m
+[32m +  getStatus(channelId: string): WaConnectionStatus {[m
+[32m++=======[m
+[32m+   getStatus(channelId: string) {[m
+[32m+     if (this.connecting.has(channelId)) return 'connecting';[m
+[32m++>>>>>>> 18db1b8 (perubahan)[m
+      const instance = this.clients.get(channelId);[m
+      if (!instance) return 'disconnected';[m
+[31m -    return instance.sock.ws?.isOpen ? 'connected' : 'connecting';[m
+[32m +    // Jangan pakai sock.ws.isOpen: saat pairing (QR belum di-scan) WebSocket ke[m
+[32m +    // server WhatsApp sudah terbuka, jadi statusnya keliru "connected" dan QR[m
+[32m +    // langsung hilang. Pakai state dari event connection.update.[m
+[32m +    return instance.status;[m
+    }[m
+  [m
+    async logout(channelId: string) {[m

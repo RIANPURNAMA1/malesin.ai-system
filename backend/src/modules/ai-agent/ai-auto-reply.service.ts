@@ -5,6 +5,17 @@ import { aiAgentService, AiReplyResult } from './ai-agent.service';
 import { extractImageUrls, splitImageUrls } from './ai-reply';
 import { AiBehavior, aiBehaviorOf, isAiPaused } from './ai-takeover';
 import { whatsAppUnofficialService } from '../channel/whatsapp-unofficial.service';
+import {
+  buildConversationStateContext,
+  extractCustomerData,
+  findDuplicateReply,
+  loadConversationHistory,
+  loadRecentAssistantReplies,
+  mergeAiState,
+  mergeTopics,
+  normalizeText,
+  readAiState,
+} from './ai-conversation-context';
 
 export interface AutoReplyInput {
   companyId: string;
@@ -95,6 +106,33 @@ function createPacer(opts: {
 }
 
 /**
+ * Pesan eskalasi deterministik: dikirim kalau AI tetap mengulang jawaban yang
+ * sama setelah satu kali percobaan ulang.
+ */
+const ESCALATION_REPLY =
+  'Mohon maaf kak 🙏 Sepertinya saya perlu bantuan admin untuk menjawab ini dengan tepat. ' +
+  'Saya sambungkan ke admin kami ya, mohon ditunggu sebentar. Terima kasih 🙏';
+
+/**
+ * Antrean per percakapan. Dua pesan WhatsApp yang masuk hampir bersamaan tidak
+ * boleh diproses paralel: proses kedua bisa membaca konteks sebelum balasan
+ * pertama tersimpan, lalu mengulang jawaban yang sama.
+ */
+const conversationQueues = new Map<string, Promise<AutoReplyOutcome>>();
+const latestInputs = new Map<string, { seq: number; input: AutoReplyInput }>();
+let inputSeq = 0;
+
+/** Jendela penggabungan pesan beruntun (pelanggan sering mengirim 2–3 pesan). */
+const BURST_WINDOW_MS = 1_200;
+
+const skipped = (reason: string): AutoReplyOutcome => ({
+  replied: false,
+  reason,
+  imagesSent: 0,
+  imagesFailed: 0,
+});
+
+/**
  * Auto-reply AI Agent untuk pesan masuk.
  *
  * Aturan penting:
@@ -106,6 +144,33 @@ function createPacer(opts: {
  */
 class AiAutoReplyService {
   async maybeAutoReply(input: AutoReplyInput): Promise<AutoReplyOutcome> {
+    const { conversationId } = input;
+    const mySeq = ++inputSeq;
+    latestInputs.set(conversationId, { seq: mySeq, input });
+
+    const run = async (): Promise<AutoReplyOutcome> => {
+      // Beri jeda singkat supaya pesan yang dikirim beruntun bisa digabung.
+      // Pesan terbaru tetap memuat seluruh riwayat, jadi cukup satu balasan.
+      await sleep(BURST_WINDOW_MS);
+      const latest = latestInputs.get(conversationId);
+      if (latest && latest.seq > mySeq) return skipped('superseded');
+      return this.handle(latest?.input ?? input);
+    };
+
+    const previous = conversationQueues.get(conversationId) ?? Promise.resolve(skipped('idle'));
+    const next = previous.catch(() => skipped('failed')).then(run);
+    conversationQueues.set(conversationId, next);
+    try {
+      return await next;
+    } finally {
+      if (conversationQueues.get(conversationId) === next) {
+        conversationQueues.delete(conversationId);
+        latestInputs.delete(conversationId);
+      }
+    }
+  }
+
+  private async handle(input: AutoReplyInput): Promise<AutoReplyOutcome> {
     const startedAt = Date.now();
     const text = input.text?.trim();
     if (!text) return { replied: false, reason: 'no-text', imagesSent: 0, imagesFailed: 0 };
@@ -186,27 +251,73 @@ class AiAutoReplyService {
 
     const pipeline = `${channel.name} ${channel.type}`;
 
+    // --- Konteks & state percakapan (anti-loop) ---
+    // Dimuat SETELAH pesan sambutan dikirim supaya sambutan ikut dihitung
+    // sebagai jawaban sebelumnya (AI tidak boleh mengulanginya).
+    const history = await loadConversationHistory(input.conversationId, text);
+    const state = await readAiState(input.conversationId);
+    const customerData = extractCustomerData(history, text);
+    const previousReplies = await loadRecentAssistantReplies(input.conversationId, 2);
+    const conversationContext = buildConversationStateContext({ customerData, state });
+
+    const agentConfig = {
+      id: agent.id,
+      provider: agent.provider,
+      model: agent.model,
+      apiKey: agent.apiKey,
+      systemPrompt: agent.systemPrompt,
+      welcomeMessage: agent.welcomeMessage,
+      communicationStyle: agent.communicationStyle,
+      conversationFlow: agent.conversationFlow,
+      communicationRules: agent.communicationRules,
+      additionalInstructions: agent.additionalInstructions,
+      version: agent.version,
+      temperature: agent.temperature,
+      maxTokens: agent.maxTokens,
+    };
+    const generate = (avoidRepeat?: string) =>
+      aiAgentService.replyForAgent(input.companyId, agentConfig, {
+        message: text,
+        useKnowledge: flags.useKnowledge,
+        useMedia: flags.useMedia,
+        pipeline,
+        history,
+        conversationContext,
+        avoidRepeat,
+      });
+
     let result: AiReplyResult;
+    let repeated = false;
+    let escalated = false;
     try {
-      result = await aiAgentService.replyForAgent(
-        input.companyId,
-        {
-          id: agent.id,
-          provider: agent.provider,
-          model: agent.model,
-          apiKey: agent.apiKey,
-          systemPrompt: agent.systemPrompt,
-          welcomeMessage: agent.welcomeMessage,
-          communicationStyle: agent.communicationStyle,
-          conversationFlow: agent.conversationFlow,
-          communicationRules: agent.communicationRules,
-          additionalInstructions: agent.additionalInstructions,
-          version: agent.version,
-          temperature: agent.temperature,
-          maxTokens: agent.maxTokens,
-        },
-        { message: text, useKnowledge: flags.useKnowledge, useMedia: flags.useMedia, pipeline }
-      );
+      result = await generate();
+
+      // Anti-loop deterministik: bandingkan dengan jawaban AI sebelumnya.
+      const duplicateOf = findDuplicateReply(result.reply, previousReplies);
+      if (duplicateOf) {
+        repeated = true;
+        logger.warn('AI reply mirip jawaban sebelumnya, menyusun ulang', {
+          companyId: input.companyId,
+          conversationId: input.conversationId,
+          previousReplyChars: duplicateOf.length,
+        });
+        const retry = await generate(duplicateOf);
+        if (retry.reply.trim() || retry.messages.length) result = retry;
+      }
+
+      if (findDuplicateReply(result.reply, previousReplies)) {
+        // Tetap mengulang → jangan kirim jawaban duplikat; tawarkan admin.
+        escalated = true;
+        logger.warn('AI masih mengulang jawaban, dialihkan ke eskalasi admin', {
+          companyId: input.companyId,
+          conversationId: input.conversationId,
+        });
+        result = {
+          ...result,
+          reply: ESCALATION_REPLY,
+          messages: [{ type: 'text', content: ESCALATION_REPLY }],
+        };
+      }
     } catch (err) {
       logger.error('AI auto-reply generation failed', {
         companyId: input.companyId,
@@ -272,6 +383,27 @@ class AiAutoReplyService {
 
     await pacer.done();
 
+    // State diperbarui setelah balasan berhasil diproses. Ini yang membuat
+    // percakapan berikutnya tahu data & topik yang sudah diberikan.
+    if (textSent || imagesSent > 0) {
+      try {
+        await mergeAiState(input.conversationId, {
+          customerData: { ...(state.customerData ?? {}), ...customerData },
+          answeredTopics: mergeTopics(state.answeredTopics, result.matchedKnowledge ?? []),
+          lastReplySignature: normalizeText(result.reply).slice(0, 400),
+          lastReplyAt: new Date().toISOString(),
+          repeatCount: repeated ? (state.repeatCount ?? 0) + 1 : 0,
+          ...(escalated ? { escalationOfferedAt: new Date().toISOString() } : {}),
+        });
+      } catch (err) {
+        logger.error('Gagal menyimpan state percakapan AI', {
+          companyId: input.companyId,
+          conversationId: input.conversationId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
     logger.info('AI auto-reply processed', {
       companyId: input.companyId,
       channelId: input.channelId,
@@ -282,6 +414,8 @@ class AiAutoReplyService {
       imagesSent,
       imagesFailed,
       usedKnowledge: result.usedKnowledge,
+      repeated,
+      escalated,
     });
 
     return { replied: textSent || imagesSent > 0 || welcomeSent, welcomeSent, imagesSent, imagesFailed, result };

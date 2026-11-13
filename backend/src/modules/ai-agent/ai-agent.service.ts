@@ -70,12 +70,20 @@ export interface AiReplyOptions {
   pendingKnowledge?: { title: string; content: string }[];
   /** Nama/tipe channel, dipakai untuk mencocokkan pipeline instruksi tambahan. */
   pipeline?: string;
+  /** Riwayat percakapan (tanpa pesan terbaru) supaya AI tidak kehilangan konteks. */
+  history?: AiChatMessage[];
+  /** Ringkasan state percakapan: data pelanggan & topik yang sudah dibahas. */
+  conversationContext?: string;
+  /** Jawaban sebelumnya yang tidak boleh diulang (dipakai saat anti-loop). */
+  avoidRepeat?: string;
 }
 
 export interface AiReplyResult {
   reply: string;
   messages: AiReplyMessage[];
   usedKnowledge: string[];
+  /** Knowledge yang benar-benar cocok (skor > 0), dipakai untuk topic tracking. */
+  matchedKnowledge: string[];
   usedMedia: string[];
   attachments: MediaAttachment[];
   usage?: { inputTokens?: number; outputTokens?: number };
@@ -157,29 +165,61 @@ function behaviorContext(params: {
   return blocks.join('\n\n');
 }
 
+/**
+ * Aturan anti-loop yang selalu disisipkan ke system prompt. Ini melengkapi
+ * riwayat percakapan: riwayat memberi tahu APA yang sudah terjadi, aturan ini
+ * memberi tahu APA yang tidak boleh dilakukan lagi.
+ */
+const CONVERSATION_ANTI_LOOP_RULES = `Aturan percakapan (WAJIB dipatuhi):
+1. Baca seluruh riwayat percakapan sebelum menjawab. Riwayat adalah sumber kebenaran tentang apa yang sudah dibicarakan.
+2. Jangan menanyakan ulang informasi yang sudah diberikan pelanggan (nama, usia, kota, pendidikan, minat program, dsb). Gunakan data yang sudah ada.
+3. Jangan mengulang pesan sambutan, formulir, atau pertanyaan yang sudah pernah kamu kirim.
+4. Jawab pertanyaan TERAKHIR pelanggan terlebih dahulu. Jangan mengulang penjelasan dari awal bila topik itu sudah dibahas.
+5. Jangan kembali ke tahap atau alur sebelumnya tanpa alasan. Jika pelanggan sudah memilih program, lanjutkan dari situ.
+6. Jika jawabanmu berpotensi sama dengan jawaban sebelumnya, ubah: lanjutkan ke langkah berikutnya, beri informasi baru, atau tanyakan satu hal yang belum jelas.
+7. Maksimal dua kali klarifikasi. Jika pelanggan tetap tidak jelas atau tidak menjawab pertanyaanmu, tawarkan bantuan admin manusia.
+8. Jangan mengarang informasi (harga, biaya, jadwal, syarat). Jika tidak ada di Knowledge Base, sampaikan bahwa informasi tersebut perlu dikonfirmasi admin.
+9. Jangan menyalin template jawaban berulang kali hanya karena pelanggan membalas singkat seperti "oke", "boleh", atau "siap". Lanjutkan ke langkah berikutnya.`;
+
+function antiRepeatContext(avoidRepeat?: string): string {
+  const previous = avoidRepeat?.trim();
+  if (!previous) return '';
+  return `PENTING — jawaban berikut sudah pernah kamu kirim dan TIDAK BOLEH diulang atau diparafrase mirip:\n"""${previous.slice(0, 700)}"""\nSusun jawaban yang benar-benar berbeda: jawab pertanyaan terbaru pelanggan, lanjutkan ke langkah berikutnya, atau tawarkan bantuan admin manusia. Jangan menyalin kalimat di atas.`;
+}
+
 export class AiAgentService {
   listProviders() {
     return aiProviderService.listProviders();
   }
 
-  /** Ambil API key: dari input form, atau dari agent tersimpan (terdekripsi). */
-  private async resolveApiKey(companyId: string, apiKey?: string, agentId?: string) {
+  /**
+   * Ambil API key: dari input form, atau dari agent tersimpan (terdekripsi).
+   * Key tersimpan hanya dipakai kalau provider-nya sama; kalau user baru mengganti
+   * provider di form, key lama tidak boleh dipakai ke provider baru.
+   */
+  private async resolveApiKey(companyId: string, provider: string, apiKey?: string, agentId?: string) {
     if (apiKey?.trim()) return apiKey.trim();
     if (agentId) {
       const agent = await this.findById(companyId, agentId);
+      if (agent.provider !== provider) return '';
       return decrypt(agent.apiKey);
     }
     return '';
   }
 
   async listModels(companyId: string, dto: { provider: string; apiKey?: string; agentId?: string }) {
-    const apiKey = await this.resolveApiKey(companyId, dto.apiKey, dto.agentId);
+    const apiKey = await this.resolveApiKey(companyId, dto.provider, dto.apiKey, dto.agentId);
     return aiProviderService.listModels(dto.provider, apiKey || undefined);
   }
 
   async testConnection(companyId: string, dto: { provider: string; apiKey?: string; agentId?: string }) {
-    const apiKey = await this.resolveApiKey(companyId, dto.apiKey, dto.agentId);
-    if (!apiKey) throw createError('API key wajib diisi', 400);
+    const apiKey = await this.resolveApiKey(companyId, dto.provider, dto.apiKey, dto.agentId);
+    if (!apiKey) {
+      throw createError(
+        'API key wajib diisi untuk provider ini. Key tersimpan hanya berlaku untuk provider yang sama dengan agent.',
+        400
+      );
+    }
     return aiProviderService.testConnection(dto.provider, apiKey);
   }
 
@@ -295,8 +335,8 @@ export class AiAgentService {
     if (!provider) throw createError('Provider belum dipilih', 400);
     if (!model) throw createError('Model belum dipilih', 400);
 
-    const apiKey = dto.apiKey?.trim() || (agent ? decrypt(agent.apiKey) : '');
-    if (!apiKey) throw createError('API key wajib diisi', 400);
+    const apiKey = dto.apiKey?.trim() || (agent && agent.provider === provider ? decrypt(agent.apiKey) : '');
+    if (!apiKey) throw createError('API key wajib diisi untuk provider ini', 400);
 
     const systemPrompt = (dto.systemPrompt !== undefined ? dto.systemPrompt : agent?.systemPrompt) || '';
     const temperature = dto.temperature ?? agent?.temperature ?? 0.7;
@@ -341,6 +381,9 @@ export class AiAgentService {
       useMedia: options.useMedia ?? true,
       pendingKnowledge: options.pendingKnowledge,
       pipeline: options.pipeline,
+      history: options.history,
+      conversationContext: options.conversationContext,
+      avoidRepeat: options.avoidRepeat,
       communicationStyle: agent.communicationStyle,
       conversationFlow: agent.conversationFlow,
       communicationRules: agent.communicationRules,
@@ -362,6 +405,9 @@ export class AiAgentService {
     useMedia?: boolean;
     pendingKnowledge?: { title: string; content: string }[];
     pipeline?: string;
+    history?: AiChatMessage[];
+    conversationContext?: string;
+    avoidRepeat?: string;
     communicationStyle?: string | null;
     conversationFlow?: string | null;
     communicationRules?: string | null;
@@ -373,6 +419,7 @@ export class AiAgentService {
     let knowledgeEntries: ContextEntry[] = [];
     let relevantKnowledge: KnowledgeWithMedia[] = [];
     let usedKnowledge: string[] = [];
+    let matchedKnowledge: string[] = [];
 
     if (params.useKnowledge) {
       if (agentId) {
@@ -384,10 +431,12 @@ export class AiAgentService {
         }));
         relevantKnowledge = detailed.filter(d => d.score > 0).map(d => d.entry);
         usedKnowledge = detailed.map(d => d.entry.title);
+        matchedKnowledge = detailed.filter(d => d.score > 0).map(d => d.entry.title);
       } else {
         const ranked = knowledgeService.rankDetailed(params.pendingKnowledge ?? [], message);
         knowledgeEntries = ranked.map(r => ({ title: r.entry.title, content: r.entry.content, media: [] }));
         usedKnowledge = ranked.map(r => r.entry.title);
+        matchedKnowledge = ranked.filter(r => r.score > 0).map(r => r.entry.title);
       }
     }
 
@@ -440,13 +489,36 @@ export class AiAgentService {
         'sertakan URL tersebut apa adanya pada baris tersendiri di jawabanmu. Sistem akan mengirimnya sebagai gambar. ' +
         'Jangan pernah membuat URL gambar sendiri.'
       : '';
-    const system = [params.systemPrompt, behavior, knowledgeContext, imageUrlInstruction, mediaInstruction, mediaCatalog]
+    const system = [
+      params.systemPrompt,
+      CONVERSATION_ANTI_LOOP_RULES,
+      params.conversationContext,
+      behavior,
+      antiRepeatContext(params.avoidRepeat),
+      knowledgeContext,
+      imageUrlInstruction,
+      mediaInstruction,
+      mediaCatalog,
+    ]
       .filter(Boolean)
       .join('\n\n');
 
+    const conversation = [...(params.history ?? [])];
+    const current: AiChatMessage = { role: 'user', content: message.trim() };
+    const last = conversation[conversation.length - 1];
+    if (last?.role === 'user') {
+      // Penggabungan menjaga pergantian role yang valid untuk semua provider.
+      conversation[conversation.length - 1] = {
+        role: 'user',
+        content: `${last.content}\n\n${current.content}`,
+      };
+    } else {
+      conversation.push(current);
+    }
+
     const messages: AiChatMessage[] = [
       ...(system ? [{ role: 'system' as const, content: system }] : []),
-      { role: 'user' as const, content: message.trim() },
+      ...conversation,
     ];
 
     const result = await aiProviderService.chat(params.provider, params.apiKey, {
@@ -497,6 +569,7 @@ export class AiAgentService {
       reply,
       messages: finalMessages,
       usedKnowledge,
+      matchedKnowledge,
       usedMedia: images.map(img => img.title),
       attachments,
       usage: result.usage,

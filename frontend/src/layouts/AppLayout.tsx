@@ -3,10 +3,12 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   MessageCircle, Bot, Radio, Workflow, BarChart3, Settings,
   LogOut, Menu, X, ShoppingCart, Megaphone, MessageSquare, Users, Calendar,
+  Download,
 } from 'lucide-react';
 import { useAuthStore } from '../store/auth.store';
 import { useSocketStore } from '../store/socket.store';
 import { useSocket } from '../hooks/useSocket';
+import { usePwaInstall } from '../hooks/usePwaInstall';
 import { Avatar } from '../components/ui/index';
 import NotificationBell from '../components/NotificationBell';
 import { useNotificationStore } from '../store/notification.store';
@@ -63,6 +65,7 @@ export default function AppLayout() {
   useSocket();
   const { user, logout } = useAuthStore();
   const { connected } = useSocketStore();
+  const { canInstall, install } = usePwaInstall();
   const unreadChats = useNotificationStore(s => s.items.some(i => !i.read && i.type === 'NEW_MESSAGE'));
   const bindNotifications = useNotificationStore(s => s.bindUser);
   useEffect(() => { bindNotifications(user?.id ?? null); }, [user?.id, bindNotifications]);
@@ -75,6 +78,11 @@ export default function AppLayout() {
     await logout();
     navigate('/login');
     toast.success('Logged out');
+  };
+
+  const handleInstall = async () => {
+    const accepted = await install();
+    if (accepted) toast.success('malesin.AI berhasil di-install');
   };
 
   const hasNotif = unreadChats;
@@ -178,6 +186,17 @@ export default function AppLayout() {
           </div>
 
           <div className="relative flex flex-shrink-0 items-center gap-1 pb-1.5">
+            {canInstall && (
+              <button
+                onClick={handleInstall}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-primary transition hover:bg-white"
+                title="Install malesin.AI sebagai aplikasi desktop"
+              >
+                <Download className="h-4 w-4" />
+                <span className="hidden md:inline">Install App</span>
+              </button>
+            )}
+
             <NotificationBell />
 
             <button

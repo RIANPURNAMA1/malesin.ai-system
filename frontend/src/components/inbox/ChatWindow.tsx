@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import ChatMenu from './ChatMenu';
-import { Send, Paperclip, CheckCheck, Check, Clock, X, UserPlus, ChevronDown, ChevronLeft, Bot } from 'lucide-react';
+import { Send, Paperclip, CheckCheck, Check, Clock, X, UserPlus, ChevronDown, ChevronLeft, Bot, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { conversationService } from '../../services/conversation.service';
+import { messageService } from '../../services/index';
 import { useInboxStore } from '../../store/inbox.store';
 import { useMessages, useSendMessage, useUpdateStatus, useConversation } from '../../hooks/useConversation';
 import { Avatar, Spinner } from '../ui/index';
@@ -15,16 +16,65 @@ import { useNotificationStore } from '../../store/notification.store';
 interface Props { conversationId: string; onOpenDetail: () => void; onBack?: () => void; }
 
 export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Props) {
-  const { messages, typing } = useInboxStore();
+  const { messages, typing, prependMessages } = useInboxStore();
   const { socket } = useSocketStore();
-  const { isLoading: loadingMsgs } = useMessages(conversationId);
+  const messagesQuery = useMessages(conversationId);
+  const { isLoading: loadingMsgs } = messagesQuery;
   const { data: conversation } = useConversation(conversationId);
   const sendMutation = useSendMessage(conversationId);
   const updateStatus = useUpdateStatus(conversationId);
   const [text, setText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const convMessages = messages[conversationId] || [];
   const isTyping = !!typing[conversationId];
+
+  // Halaman 1 = pesan terbaru. Halaman berikutnya dimuat saat user scroll ke
+  // atas supaya seluruh riwayat (termasuk yang dikirim dari HP) bisa dilihat.
+  const [loadedPage, setLoadedPage] = useState(1);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
+  const skipAutoScroll = useRef(false);
+  const totalMessages = messagesQuery.data?.pagination?.total ?? 0;
+  const hasOlder = totalMessages > 0 && convMessages.length < totalMessages;
+
+  useEffect(() => {
+    setLoadedPage(1);
+    setLoadingOlder(false);
+    loadingOlderRef.current = false;
+    skipAutoScroll.current = false;
+  }, [conversationId]);
+
+  const loadOlderMessages = async () => {
+    if (loadingOlderRef.current || !hasOlder) return;
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight ?? 0;
+    const prevTop = el?.scrollTop ?? 0;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    try {
+      const res = await messageService.list(conversationId, loadedPage + 1, 50);
+      skipAutoScroll.current = true;
+      prependMessages(conversationId, res.data);
+      setLoadedPage(p => p + 1);
+      // Pertahankan posisi baca setelah pesan lama disisipkan di atas.
+      requestAnimationFrame(() => {
+        if (!el) return;
+        el.scrollTop = prevTop + (el.scrollHeight - prevHeight);
+      });
+    } catch {
+      toast.error('Gagal memuat pesan sebelumnya');
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  };
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el || el.scrollTop > 80) return;
+    void loadOlderMessages();
+  };
 
   // Chat yang sedang dibuka → notifikasinya dianggap sudah dibaca.
   const markNotifRead = useNotificationStore(s => s.markConversationRead);
@@ -60,7 +110,11 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
       socket?.emit('typing:start', { conversationId });
     }
   };
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [convMessages.length, isTyping]);
+  useEffect(() => {
+    // Jangan lompat ke bawah saat pesan lama baru disisipkan di atas.
+    if (skipAutoScroll.current) { skipAutoScroll.current = false; return; }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [convMessages.length, isTyping]);
 
   const handleSend = async () => {
     if (!text.trim()) return; const content = text.trim(); setText('');
@@ -117,7 +171,19 @@ export default function ChatWindow({ conversationId, onOpenDetail, onBack }: Pro
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin">
+        {hasOlder && (
+          <div className="flex justify-center pb-2">
+            <button
+              onClick={() => void loadOlderMessages()}
+              disabled={loadingOlder}
+              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500 shadow-sm hover:text-gray-700 disabled:opacity-60"
+            >
+              {loadingOlder ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ChevronDown className="w-3.5 h-3.5 rotate-180" />}
+              Muat pesan sebelumnya
+            </button>
+          </div>
+        )}
         {loadingMsgs ? <div className="flex justify-center mt-10"><Spinner /></div>
           : convMessages.length === 0 ? <div className="text-center text-gray-400 text-sm mt-16">No messages yet</div>
           : convMessages.map((msg, i) => <MessageBubble key={msg.id} message={msg} showDate={i === 0 || !isSameDay(convMessages[i - 1].sentAt, msg.sentAt)} />)}

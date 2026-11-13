@@ -111,6 +111,23 @@ omnichannel/
 
 ---
 
+## Desktop App (PWA)
+
+The frontend is installable as a desktop app (PWA), so it runs in its own window on Windows/macOS/Linux while the backend and WhatsApp session keep running on the server.
+
+1. Deploy the production build (`npm run build`, served by nginx/Docker) over **HTTPS**.
+2. Open the site in Chrome or Edge.
+3. Click **Install App** in the top bar (or the install icon in the address bar).
+4. The app opens in a standalone window and appears in the Start menu / applications list.
+
+Notes:
+
+- The service worker is registered only in production builds, so `npm run dev` (with HMR) is never cached.
+- `/api`, `/socket.io`, and `/uploads` are always fetched from the network and never cached.
+- To change the app icon, replace `frontend/public/icon-*.png` / `apple-touch-icon.png`; bump `CACHE_VERSION` in `frontend/public/sw.js` after deploy to force an update.
+
+---
+
 ## WhatsApp Setup
 
 1. Create a Meta App at https://developers.facebook.com

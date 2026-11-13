@@ -10,18 +10,23 @@ const whatsappService = new WhatsAppService();
 
 export class MessageService {
   async getMessages(conversationId: string, page = 1, limit = 50) {
-    const skip = (page - 1) * limit;
+    // Halaman 1 harus berisi pesan TERBARU (termasuk yang dikirim dari HP),
+    // bukan 50 pesan paling lama. Urutan desc diambil dulu, lalu dibalik
+    // supaya tetap tampil kronologis (lama → baru) di chat window.
+    const perPage = Math.min(Math.max(limit, 1), 200);
+    const currentPage = Math.max(page, 1);
+    const skip = (currentPage - 1) * perPage;
     const [messages, total] = await Promise.all([
       prisma.message.findMany({
         where: { conversationId },
         include: { sender: { select: { id: true, name: true, avatar: true } }, attachments: true },
-        orderBy: { sentAt: 'asc' },
+        orderBy: { sentAt: 'desc' },
         skip,
-        take: limit,
+        take: perPage,
       }),
       prisma.message.count({ where: { conversationId } }),
     ]);
-    return { messages, total, page, limit };
+    return { messages: messages.reverse(), total, page: currentPage, limit: perPage };
   }
 
   /**

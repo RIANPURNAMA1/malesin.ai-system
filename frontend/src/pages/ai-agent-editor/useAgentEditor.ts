@@ -224,7 +224,10 @@ export function useAgentEditor() {
     mutationFn: () =>
       aiAgentService.testResponse({
         agentId,
-        provider: agentId ? undefined : form.provider,
+        // Selalu pakai provider yang sedang dipilih di form. Kalau hanya mengandalkan
+        // provider tersimpan, ganti provider tanpa simpan akan mengetes model baru
+        // memakai provider lama (biasanya berakhir 404 model tidak ditemukan).
+        provider: form.provider,
         model: form.model,
         apiKey: form.apiKey || undefined,
         systemPrompt: form.systemPrompt,

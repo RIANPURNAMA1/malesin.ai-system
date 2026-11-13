@@ -43,7 +43,15 @@ export default function ConfigTab({ ed }: { ed: AgentEditor }) {
               <button
                 key={p}
                 type="button"
-                onClick={() => { set('provider', p); setModelOptions(providers?.find(x => x.id === p)?.models ?? []); setConnectionResult(null); }}
+                onClick={() => {
+                  if (form.provider === p) return;
+                  const nextModels = providers?.find(x => x.id === p)?.models ?? [];
+                  set('provider', p);
+                  setModelOptions(nextModels);
+                  // Model lama milik provider sebelumnya tidak berlaku di provider baru.
+                  set('model', nextModels[0] ?? '');
+                  setConnectionResult(null);
+                }}
                 className={`flex flex-col items-center gap-2 rounded-xl border-2 px-3 py-4 transition ${
                   active ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}

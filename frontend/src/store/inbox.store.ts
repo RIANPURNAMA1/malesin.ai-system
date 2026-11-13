@@ -17,6 +17,7 @@ interface InboxState {
   setActiveConversation: (id: string | null) => void;
   setMessages: (conversationId: string, msgs: Message[]) => void;
   addMessage: (conversationId: string, msg: Message) => void;
+  prependMessages: (conversationId: string, msgs: Message[]) => void;
   setTyping: (conversationId: string, isTyping: boolean) => void;
   setFilters: (filters: Partial<InboxState['filters']>) => void;
 }
@@ -64,6 +65,16 @@ export const useInboxStore = create<InboxState>((set) => ({
         ? { ...s.typing, [conversationId]: false }
         : s.typing;
       return { messages: { ...s.messages, [conversationId]: [...list, msg] }, typing };
+    }),
+
+  /** Tambahkan pesan lama di atas daftar (saat memuat halaman sebelumnya). */
+  prependMessages: (conversationId, msgs) =>
+    set((s) => {
+      const list = s.messages[conversationId] || [];
+      const existing = new Set(list.map((m) => m.id));
+      const fresh = msgs.filter((m) => !existing.has(m.id));
+      if (!fresh.length) return s;
+      return { messages: { ...s.messages, [conversationId]: [...fresh, ...list] } };
     }),
 
   setTyping: (conversationId, isTyping) => {
