@@ -27,8 +27,6 @@ export const contactService = {
     api.put<ApiResponse<Contact>>(`/contacts/${id}`, payload).then(r => r.data.data),
   // Nomor tanpa AI (contact.metadata.aiDisabled)
   listAiExcluded: () => api.get<ApiResponse<Contact[]>>('/contacts/ai-excluded').then(r => r.data.data),
-  addAiExcluded: (phone: string, name?: string) =>
-    api.post<ApiResponse<Contact>>('/contacts/ai-excluded', { phone, name }).then(r => r.data.data),
   setAiDisabled: (id: string, disabled: boolean) =>
     api.patch<ApiResponse<Contact>>(`/contacts/${id}/ai`, { disabled }).then(r => r.data.data),
 };

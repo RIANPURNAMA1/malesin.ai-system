@@ -69,19 +69,6 @@ class ContactService {
       select: { id: true, name: true, phone: true, metadata: true, updatedAt: true },
     });
   }
-
-  /** Tambah nomor ke daftar; kontak dibuat bila nomor belum pernah chat. */
-  async addAiExcluded(companyId: string, rawPhone: string, name?: string) {
-    let phone = String(rawPhone ?? '').replace(/\D/g, '');
-    if (phone.startsWith('0')) phone = `62${phone.slice(1)}`;
-    if (!/^\d{8,15}$/.test(phone)) throw createError('Nomor tidak valid (8–15 digit)', 400);
-    const existing = await prisma.contact.findUnique({ where: { companyId_phone: { companyId, phone } }, select: { id: true } });
-    const id = existing?.id ?? (await prisma.contact.create({
-      data: { companyId, phone, name: name?.trim() || phone, sourceChannel: 'MANUAL', totalMessages: 0 },
-      select: { id: true },
-    })).id;
-    return this.setAiDisabled(companyId, id, true);
-  }
 }
 
 const contactService = new ContactService();
@@ -103,13 +90,6 @@ router.get('/', async (req: AuthRequest, res: Response, next: NextFunction) => {
 router.get('/ai-excluded', async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     success(res, await contactService.listAiExcluded(req.user!.companyId));
-  } catch (err) { next(err); }
-});
-
-router.post('/ai-excluded', async (req: AuthRequest, res: Response, next: NextFunction) => {
-  try {
-    const data = await contactService.addAiExcluded(req.user!.companyId, req.body.phone, req.body.name);
-    success(res, data, 'Nomor ditambahkan, AI tidak akan membalas');
   } catch (err) { next(err); }
 });
 

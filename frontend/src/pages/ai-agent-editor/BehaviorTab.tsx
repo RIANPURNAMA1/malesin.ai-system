@@ -1,6 +1,7 @@
 import { Plus, Trash2, MessageSquare, Brain, GitBranch, ChevronDown } from 'lucide-react';
 import { MAX_INSTRUCTION_CHARS, BEHAVIOR_SECTIONS, TEXTAREA_CLS } from './constants';
 import { SectionCard, FieldBox } from './ui';
+import MediaTextarea from './MediaTextarea';
 import type { AgentEditor } from './useAgentEditor';
 
 export default function BehaviorTab({ ed }: { ed: AgentEditor }) {
@@ -49,15 +50,15 @@ export default function BehaviorTab({ ed }: { ed: AgentEditor }) {
           open={!collapsed.welcome}
           onToggle={() => toggleSection('welcome')}
         >
-          <textarea
+          <MediaTextarea
             value={form.welcomeMessage}
-            onChange={e => set('welcomeMessage', e.target.value)}
+            onChange={v => set('welcomeMessage', v)}
             rows={3}
             placeholder="Contoh: Halo! 👋 Selamat datang di [Business Name]. Saya siap membantu. Anda bisa bertanya soal harga, layanan, atau apa pun yang Anda butuhkan."
             className={TEXTAREA_CLS}
           />
           <p className="mt-2 text-xs text-gray-400">
-            Hanya dikirim jika percakapan belum memiliki pesan keluar sama sekali.
+            Hanya dikirim jika percakapan belum memiliki pesan keluar sama sekali. Gambar yang disisipkan ikut dikirim sebagai pesan gambar.
           </p>
         </SectionCard>
 
@@ -71,27 +72,27 @@ export default function BehaviorTab({ ed }: { ed: AgentEditor }) {
         >
           <div className="space-y-4">
             <FieldBox title="Gaya komunikasi">
-              <textarea
+              <MediaTextarea
                 value={form.communicationStyle}
-                onChange={e => set('communicationStyle', e.target.value)}
+                onChange={v => set('communicationStyle', v)}
                 rows={3}
                 placeholder="Contoh: Bersikaplah tenang dan empatik saat pelanggan kesal. Akui keluhan mereka dan bantu mereka menemukan solusi."
                 className={TEXTAREA_CLS}
               />
             </FieldBox>
             <FieldBox title="Alur percakapan">
-              <textarea
+              <MediaTextarea
                 value={form.conversationFlow}
-                onChange={e => set('conversationFlow', e.target.value)}
+                onChange={v => set('conversationFlow', v)}
                 rows={3}
                 placeholder="Contoh: jawab dengan jelas, arahkan pelanggan ke langkah berikutnya, dan eskalasikan bila perlu."
                 className={TEXTAREA_CLS}
               />
             </FieldBox>
             <FieldBox title="Aturan & batasan">
-              <textarea
+              <MediaTextarea
                 value={form.communicationRules}
-                onChange={e => set('communicationRules', e.target.value)}
+                onChange={v => set('communicationRules', v)}
                 rows={3}
                 placeholder="Contoh: Tetap tenang dan sopan, bahkan saat pelanggan kesal. Arahkan percakapan kembali ke upaya membantu mereka dengan baik."
                 className={TEXTAREA_CLS}
@@ -130,9 +131,9 @@ export default function BehaviorTab({ ed }: { ed: AgentEditor }) {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <textarea
+                <MediaTextarea
                   value={instruction.content}
-                  onChange={e => updateInstruction(instruction.id, { content: e.target.value.slice(0, MAX_INSTRUCTION_CHARS) })}
+                  onChange={v => updateInstruction(instruction.id, { content: v })}
                   rows={2}
                   maxLength={MAX_INSTRUCTION_CHARS}
                   placeholder="Contoh: Selalu tawarkan bantuan tambahan sebelum menutup percakapan."

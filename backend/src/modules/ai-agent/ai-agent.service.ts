@@ -500,12 +500,13 @@ export class AiAgentService {
       additionalInstructions: params.additionalInstructions,
       pipeline: params.pipeline,
     });
-    // URL gambar yang ditempel di isi knowledge boleh dikirim AI sebagai gambar.
-    const knowledgeImageUrls = new Set(extractImageUrls(knowledgeContext));
+    // URL gambar yang ditempel di knowledge maupun di Perilaku AI (gaya, alur,
+    // aturan, instruksi tambahan) boleh dikirim AI sebagai pesan gambar.
+    const knowledgeImageUrls = new Set([...extractImageUrls(knowledgeContext), ...extractImageUrls(behavior)]);
     const imageUrlInstruction = knowledgeImageUrls.size
-      ? 'Jika informasi di atas berisi URL gambar (png/jpg/gif/webp) yang relevan dengan pertanyaan pelanggan, ' +
-        'sertakan URL tersebut apa adanya pada baris tersendiri di jawabanmu. Sistem akan mengirimnya sebagai gambar. ' +
-        'Jangan pernah membuat URL gambar sendiri.'
+      ? 'Jika instruksi atau informasi di atas berisi URL gambar (png/jpg/gif/webp) yang relevan dengan pertanyaan pelanggan ' +
+        'atau dengan langkah alur percakapan saat ini, sertakan URL tersebut apa adanya pada baris tersendiri di jawabanmu. ' +
+        'Sistem akan mengirimnya sebagai gambar. Jangan pernah membuat URL gambar sendiri.'
       : '';
     const system = [
       params.systemPrompt,
