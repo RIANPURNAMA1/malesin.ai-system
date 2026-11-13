@@ -5,6 +5,7 @@ import { ConversationService } from '../conversation/conversation.service';
 import { getIO } from '../../sockets/socket.server';
 import logger from '../../utils/logger';
 import { aiAutoReplyService } from '../ai-agent/ai-auto-reply.service';
+import { applyMessageStatus } from '../message/message-status';
 
 const conversationService = new ConversationService();
 
@@ -56,15 +57,15 @@ export async function handleWebhookPost(req: Request, res: Response) {
         if (!channel) continue;
 
         // Handle status updates
+        // Status centang (sent/delivered/read/failed) → realtime ke frontend.
         for (const status of value.statuses || []) {
-          await prisma.message.updateMany({
-            where: { wamid: status.id },
-            data: {
-              status: status.status?.toUpperCase() || 'DELIVERED',
-              ...(status.status === 'delivered' && { deliveredAt: new Date() }),
-              ...(status.status === 'read' && { readAt: new Date() }),
-            },
-          });
+          const mapped = ({ sent: 'SENT', delivered: 'DELIVERED', read: 'READ', failed: 'FAILED' } as const)[
+            status.status as 'sent' | 'delivered' | 'read' | 'failed'
+          ];
+          if (!status.id || !mapped) continue;
+          await applyMessageStatus(channel.companyId, status.id, mapped).catch(err =>
+            logger.warn(`Gagal update status pesan ${status.id}`, err)
+          );
         }
 
         // Handle incoming messages

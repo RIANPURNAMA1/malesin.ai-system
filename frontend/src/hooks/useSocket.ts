@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useSocketStore } from '../store/socket.store';
 import { useInboxStore } from '../store/inbox.store';
 import { useAuthStore } from '../store/auth.store';
-import { Message, Conversation, Notification } from '../types';
+import { Message, Conversation, Notification, MessageStatus } from '../types';
 import { useNotificationStore, notificationLink } from '../store/notification.store';
 import { conversationService } from '../services/conversation.service';
 import toast from 'react-hot-toast';
@@ -11,7 +11,7 @@ import toast from 'react-hot-toast';
 export function useSocket() {
   const { accessToken } = useAuthStore();
   const { connect, disconnect, socket } = useSocketStore();
-  const { addMessage, upsertConversation, setTyping } = useInboxStore();
+  const { addMessage, upsertConversation, setTyping, updateMessageStatus } = useInboxStore();
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -62,7 +62,14 @@ export function useSocket() {
     socket.on('notification', handleNotification);
     socket.on('message:typing', handleTyping);
 
+    // Centang 1 → centang 2 → biru (dibaca) secara realtime.
+    const handleStatus = ({ conversationId, messageId, status }: { conversationId: string; messageId: string; status: MessageStatus }) => {
+      updateMessageStatus(conversationId, messageId, status);
+    };
+    socket.on('message:status', handleStatus);
+
     return () => {
+      socket.off('message:status', handleStatus);
       socket.off('connect', handleReconnect);
       socket.off('message:new', handleNewMessage);
       socket.off('conversation:updated', handleConversationUpdated);

@@ -900,26 +900,8 @@ class WhatsAppUnofficialService {
     wamid: string,
     status: 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'
   ) {
-    const existing = await prisma.message.findUnique({
-      where: { wamid },
-      select: { id: true, conversationId: true, status: true },
-    });
-    if (!existing || existing.status === status) return;
-
-    await prisma.message.update({
-      where: { id: existing.id },
-      data: {
-        status,
-        ...(status === 'DELIVERED' ? { deliveredAt: new Date() } : {}),
-        ...(status === 'READ' ? { readAt: new Date() } : {}),
-      },
-    });
-
-    getIO().to(`company:${companyId}`).emit('message:status', {
-      conversationId: existing.conversationId,
-      messageId: existing.id,
-      status,
-    });
+    const { applyMessageStatus } = await import('../message/message-status');
+    await applyMessageStatus(companyId, wamid, status);
   }
 
   private async syncContacts(channelId: string, companyId: string) {

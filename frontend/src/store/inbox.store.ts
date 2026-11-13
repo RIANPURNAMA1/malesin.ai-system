@@ -1,5 +1,8 @@
 import { create } from 'zustand';
-import { Conversation, Message, ConversationStatus } from '../types';
+import { Conversation, Message, ConversationStatus, MessageStatus } from '../types';
+
+/** Status centang hanya boleh naik: terkirim → sampai → dibaca. */
+const STATUS_RANK: Record<string, number> = { PENDING: 0, SENT: 1, DELIVERED: 2, READ: 3 };
 
 interface InboxState {
   conversations: Conversation[];
@@ -18,6 +21,7 @@ interface InboxState {
   setMessages: (conversationId: string, msgs: Message[]) => void;
   addMessage: (conversationId: string, msg: Message) => void;
   prependMessages: (conversationId: string, msgs: Message[]) => void;
+  updateMessageStatus: (conversationId: string, messageId: string, status: MessageStatus) => void;
   setTyping: (conversationId: string, isTyping: boolean) => void;
   setFilters: (filters: Partial<InboxState['filters']>) => void;
 }
@@ -86,6 +90,20 @@ export const useInboxStore = create<InboxState>((set) => ({
       const fresh = msgs.filter((m) => !existing.has(m.id));
       if (!fresh.length) return s;
       return { messages: { ...s.messages, [conversationId]: [...fresh, ...list] } };
+    }),
+
+  updateMessageStatus: (conversationId, messageId, status) =>
+    set((s) => {
+      const list = s.messages[conversationId];
+      if (!list) return s;
+      let changed = false;
+      const next = list.map((m) => {
+        if (m.id !== messageId || m.status === status) return m;
+        if (status !== 'FAILED' && (STATUS_RANK[m.status] ?? 0) > STATUS_RANK[status]) return m;
+        changed = true;
+        return { ...m, status };
+      });
+      return changed ? { messages: { ...s.messages, [conversationId]: next } } : s;
     }),
 
   setTyping: (conversationId, isTyping) => {

@@ -246,10 +246,11 @@ function MessageBubble({ message: m, showDate }: { message: Message; showDate: b
             {m.type === 'REACTION' ? <span className="text-2xl">{m.reactionEmoji}</span>
               : m.type === 'IMAGE' ? <div>{m.mediaUrl && <img src={m.mediaUrl} alt="image" className="max-w-xs rounded-lg mb-1" />}{m.content && <p>{m.content}</p>}</div>
               : <p className="whitespace-pre-wrap break-words leading-relaxed">{m.content || m.fileName || 'Media'}</p>}
-          </div>
-          <div className={`flex items-center gap-1 mt-1 ${isOut ? 'flex-row-reverse' : ''}`}>
-            <span className="text-[10px] text-gray-400">{format(new Date(m.sentAt), 'HH:mm')}</span>
-            {isOut && <MessageStatusIcon status={m.status} />}
+            {/* Jam + centang di pojok kanan bawah gelembung, seperti WhatsApp */}
+            <div className={`-mb-1 mt-0.5 flex items-center justify-end gap-1 ${isOut ? 'text-white/70' : 'text-gray-400'}`}>
+              <span className="text-[10px] tabular-nums">{format(new Date(m.sentAt), 'HH:mm')}</span>
+              {isOut && <MessageStatusIcon status={m.status} />}
+            </div>
           </div>
         </div>
       </div>
@@ -257,12 +258,25 @@ function MessageBubble({ message: m, showDate }: { message: Message; showDate: b
   );
 }
 
+/**
+ * Centang pesan keluar (di atas gelembung biru):
+ * jam = menunggu, ✓ = terkirim, ✓✓ = sampai di HP, ✓✓ biru terang = dibaca, ✕ = gagal.
+ */
+const STATUS_META: Record<string, { label: string; icon: React.ReactNode }> = {
+  PENDING: { label: 'Mengirim…', icon: <Clock className="h-3 w-3" /> },
+  SENT: { label: 'Terkirim', icon: <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> },
+  DELIVERED: { label: 'Sampai', icon: <CheckCheck className="h-3.5 w-3.5" strokeWidth={2.5} /> },
+  READ: { label: 'Dibaca', icon: <CheckCheck className="h-3.5 w-3.5 text-sky-300" strokeWidth={2.5} /> },
+  FAILED: { label: 'Gagal terkirim', icon: <X className="h-3.5 w-3.5 rounded-full bg-white text-danger" strokeWidth={3} /> },
+};
+
 function MessageStatusIcon({ status }: { status: string }) {
-  if (status === 'FAILED') return <X className="w-3 h-3 text-danger" />;
-  if (status === 'READ') return <CheckCheck className="w-3 h-3 text-blue-400" />;
-  if (status === 'DELIVERED') return <CheckCheck className="w-3 h-3 text-gray-400" />;
-  if (status === 'SENT') return <Check className="w-3 h-3 text-gray-400" />;
-  return <Clock className="w-3 h-3 text-gray-400" />;
+  const meta = STATUS_META[status] ?? STATUS_META.PENDING;
+  return (
+    <span key={status} title={meta.label} aria-label={meta.label} className="inline-flex animate-fade-in">
+      {meta.icon}
+    </span>
+  );
 }
 
 function StatusDropdown({ current, onUpdate }: { current: string; onUpdate: (s: string) => void }) {
