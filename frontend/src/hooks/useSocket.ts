@@ -5,6 +5,7 @@ import { useInboxStore } from '../store/inbox.store';
 import { useAuthStore } from '../store/auth.store';
 import { Message, Conversation, Notification } from '../types';
 import { useNotificationStore, notificationLink } from '../store/notification.store';
+import { conversationService } from '../services/conversation.service';
 import toast from 'react-hot-toast';
 
 export function useSocket() {
@@ -24,6 +25,10 @@ export function useSocket() {
 
     const handleNewMessage = ({ conversationId, message }: { conversationId: string; message: Message }) => {
       addMessage(conversationId, message);
+      // Pesan masuk ke chat yang sedang dibuka langsung dianggap terbaca.
+      if (message.direction === 'INBOUND' && useInboxStore.getState().activeConversationId === conversationId) {
+        conversationService.markRead(conversationId).catch(() => null);
+      }
     };
 
     const handleConversationUpdated = (conv: Conversation) => {

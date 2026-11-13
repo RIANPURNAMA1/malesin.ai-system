@@ -38,9 +38,15 @@ export const useInboxStore = create<InboxState>((set) => ({
   typing: {},
   filters: { status: 'OPEN', channelId: '', search: '', labelId: '' },
 
-  setConversations: (convs) => set({ conversations: convs }),
+  setConversations: (convs) => set((s) => ({
+    conversations: convs.map((c) => (c.id === s.activeConversationId ? { ...c, _count: { ...c._count, messages: 0 } } : c)),
+  })),
 
-  upsertConversation: (conv) => set((s) => {
+  upsertConversation: (incoming) => set((s) => {
+    // Chat yang sedang dibuka dianggap sudah dibaca: jangan tampilkan badge.
+    const conv = incoming.id === s.activeConversationId
+      ? { ...incoming, _count: { ...incoming._count, messages: 0 } }
+      : incoming;
     const idx = s.conversations.findIndex((c) => c.id === conv.id);
     if (idx === -1) return { conversations: [conv, ...s.conversations] };
     const updated = [...s.conversations];
@@ -50,7 +56,12 @@ export const useInboxStore = create<InboxState>((set) => ({
     )};
   }),
 
-  setActiveConversation: (id) => set({ activeConversationId: id }),
+  setActiveConversation: (id) => set((s) => ({
+    activeConversationId: id,
+    conversations: id
+      ? s.conversations.map((c) => (c.id === id ? { ...c, _count: { ...c._count, messages: 0 } } : c))
+      : s.conversations,
+  })),
 
   setMessages: (conversationId, msgs) =>
     set((s) => ({ messages: { ...s.messages, [conversationId]: msgs } })),

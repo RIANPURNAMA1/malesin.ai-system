@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { channelService } from '../services/index';
+import { conversationService } from '../services/conversation.service';
 import { Channel } from '../types';
 import ChannelSidebar from '../components/inbox/ChannelSidebar';
 import ConversationList from '../components/inbox/ConversationList';
@@ -33,8 +34,15 @@ export default function InboxPage() {
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const [showDetail, setShowDetail] = useState(false);
-  const { filters, setFilters } = useInboxStore();
+  const { filters, setFilters, setActiveConversation } = useInboxStore();
   const { data: channels } = useQuery({ queryKey: ['channels'], queryFn: channelService.list });
+
+  // Saat chat dibuka: hilangkan badge unread & tandai dibaca di server.
+  useEffect(() => {
+    setActiveConversation(conversationId ?? null);
+    if (conversationId) conversationService.markRead(conversationId).catch(() => null);
+    return () => setActiveConversation(null);
+  }, [conversationId]);
 
   const handleSelect = (id: string) => {
     navigate(`/inbox/${id}`);
