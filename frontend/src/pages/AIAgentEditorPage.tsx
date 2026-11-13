@@ -1,4 +1,4 @@
-import { ArrowLeft, Save, Eye, CheckCircle2, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, FlaskConical, CheckCircle2, Loader2 } from 'lucide-react';
 import { Spinner } from '../components/ui/index';
 import { Tab } from './ai-agent-editor/types';
 import { useAgentEditor } from './ai-agent-editor/useAgentEditor';
@@ -65,13 +65,13 @@ export default function AIAgentEditorPage() {
         onClick={() => setTab('test')}
         className="gradient-btn flex-shrink-0 px-4 py-2 text-sm"
       >
-        <Eye className="h-4 w-4" /> Pratinjau
+        <FlaskConical className="h-4 w-4" /> Uji Agent
       </button>
     </div>
 
     {/* Body (scroll) */}
     <div className="min-h-0 flex-1 overflow-y-auto bg-gray-50/60">
-      <div className={`mx-auto px-8 py-6 ${tab === 'behavior' ? 'max-w-7xl' : 'max-w-4xl'}`}>
+      <div className={`mx-auto px-8 py-6 ${tab === 'knowledge' ? 'max-w-none' : tab === 'behavior' ? 'max-w-7xl' : 'max-w-4xl'}`}>
 
         {tab === 'behavior' && <BehaviorTab ed={ed} />}
         <PlaceholderTabs tab={tab} />

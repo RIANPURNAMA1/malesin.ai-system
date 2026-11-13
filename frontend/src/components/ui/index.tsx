@@ -39,7 +39,7 @@ export const Textarea: React.FC<TextareaProps> = ({ label, error, className = ''
 
 // Badge
 interface BadgeProps { label: string; color?: string; variant?: 'solid' | 'outline'; }
-export const Badge: React.FC<BadgeProps> = ({ label, color = '#18a6fc', variant = 'solid' }) => {
+export const Badge: React.FC<BadgeProps> = ({ label, color = '#0E3F96', variant = 'solid' }) => {
   const style = variant === 'solid'
     ? { backgroundColor: color + '22', color, borderColor: color + '44' }
     : { color, borderColor: color };
@@ -53,7 +53,7 @@ export const Badge: React.FC<BadgeProps> = ({ label, color = '#18a6fc', variant 
 // Avatar
 interface AvatarProps { name: string; src?: string | null; size?: 'xs' | 'sm' | 'md' | 'lg'; className?: string; }
 const sizeMap = { xs: 'w-6 h-6 text-xs', sm: 'w-8 h-8 text-sm', md: 'w-10 h-10 text-sm', lg: 'w-12 h-12 text-base' };
-const colors = ['bg-blue-500', 'bg-cyan-500', 'bg-green-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'];
+const colors = ['bg-primary', 'bg-primary-light', 'bg-green-500', 'bg-orange-500', 'bg-pink-500', 'bg-teal-500'];
 export const Avatar: React.FC<AvatarProps> = ({ name, src, size = 'md', className = '' }) => {
   const colorClass = colors[name.charCodeAt(0) % colors.length];
   if (src) return <img src={src} alt={name} className={`${sizeMap[size]} rounded-full object-cover ${className}`} />;
@@ -82,7 +82,7 @@ export const Select: React.FC<SelectProps> = ({ label, options, className = '', 
 
 // Spinner
 export const Spinner: React.FC<{ className?: string }> = ({ className = 'w-6 h-6' }) => (
-  <svg className={`animate-spin text-blue-500 ${className}`} fill="none" viewBox="0 0 24 24">
+  <svg className={`animate-spin text-primary ${className}`} fill="none" viewBox="0 0 24 24">
     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
   </svg>

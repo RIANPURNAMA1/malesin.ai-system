@@ -85,7 +85,7 @@ export default function AIAgentsPage() {
             {filtered.map(agent => {
               const meta = providerMeta[agent.provider];
               const Icon = meta?.icon ?? Bot;
-              const color = meta?.color ?? '#18a6fc';
+              const color = meta?.color ?? '#0E3F96';
               const used = channelsFor(agent, channels, fallbackId);
               return (
                 <div key={agent.id} onClick={() => navigate(`/ai-agents/${agent.id}`)}

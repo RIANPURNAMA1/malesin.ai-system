@@ -30,7 +30,7 @@ export default function ChannelSidebar() {
         className={`flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all ${
           !filters.channelId ? 'font-medium border' : 'text-gray-600 hover:bg-white hover:text-gray-800'
         }`}
-        style={!filters.channelId ? { background: 'rgba(24, 166, 252, 0.1)', color: '#18a6fc', borderColor: 'rgba(24, 166, 252, 0.2)' } : undefined}
+        style={!filters.channelId ? { background: 'rgba(14, 63, 150, 0.1)', color: '#0E3F96', borderColor: 'rgba(14, 63, 150, 0.2)' } : undefined}
       >
         <span className="w-6 h-6 bg-gray-200 rounded-md flex items-center justify-center text-gray-500">
           <MessageCircle className="w-3.5 h-3.5" />
@@ -42,7 +42,7 @@ export default function ChannelSidebar() {
           className={`flex items-center gap-2 w-full px-2 py-2.5 rounded-lg text-sm transition-all ${
             filters.channelId === ch.id ? 'font-medium border' : 'text-gray-600 hover:bg-white hover:text-gray-800'
           }`}
-          style={filters.channelId === ch.id ? { background: 'rgba(24, 166, 252, 0.1)', color: '#18a6fc', borderColor: 'rgba(24, 166, 252, 0.2)' } : undefined}>
+          style={filters.channelId === ch.id ? { background: 'rgba(14, 63, 150, 0.1)', color: '#0E3F96', borderColor: 'rgba(14, 63, 150, 0.2)' } : undefined}>
           <span className={`w-6 h-6 rounded-md flex items-center justify-center ${channelColors[ch.type] || 'bg-gray-200 text-gray-500'}`}>
             {channelIcons[ch.type]}
           </span>

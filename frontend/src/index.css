@@ -31,12 +31,12 @@
   }
   .gradient-btn {
     @apply inline-flex items-center justify-center gap-2 font-medium rounded-xl text-white transition-all duration-200;
-    background: #18a6fc;
+    background: #0E3F96;
   }
   .gradient-btn:hover {
-    background: #0d8be0;
+    background: #082C6B;
     transform: translateY(-1px);
-    box-shadow: 0 8px 25px rgba(24, 166, 252, 0.35);
+    box-shadow: 0 8px 25px rgba(14, 63, 150, 0.35);
   }
   .gradient-text {
     @apply text-primary;
@@ -46,8 +46,8 @@
   }
   .nav-link-active {
     font-weight: 600;
-    color: #18a6fc;
-    background: rgba(24, 166, 252, 0.1);
+    color: #0E3F96;
+    background: rgba(14, 63, 150, 0.1);
   }
   .nav-link-inactive {
     @apply text-gray-700;

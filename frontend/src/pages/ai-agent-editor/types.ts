@@ -39,6 +39,10 @@ export interface ChatTurn {
   usedKnowledge?: string[];
   usedMedia?: string[];
   attachments?: AiMediaAttachment[];
+  /** Balasan baru: tampilkan dengan efek ketik. */
+  animate?: boolean;
+  /** Balasan gagal (pesan error provider). */
+  error?: boolean;
 }
 
 

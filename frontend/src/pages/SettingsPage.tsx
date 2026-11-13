@@ -14,7 +14,7 @@ const presetLabels = [
   { name: 'Closing', color: '#ef4444' },
 ];
 
-const roleColors: Record<string, string> = { OWNER: '#18a6fc', ADMIN: '#0d8be0', AGENT: '#059669' };
+const roleColors: Record<string, string> = { OWNER: '#0E3F96', ADMIN: '#1352BF', AGENT: '#059669' };
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<'users' | 'labels'>('users');
@@ -136,11 +136,11 @@ function UsersTab() {
 
 function LabelsTab() {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ name: '', color: '#18a6fc' });
+  const [form, setForm] = useState({ name: '', color: '#0E3F96' });
   const { data: labels } = useQuery({ queryKey: ['labels'], queryFn: labelService.list });
   const createMutation = useMutation({
     mutationFn: labelService.create,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['labels'] }); toast.success('Label created'); setForm({ name: '', color: '#18a6fc' }); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['labels'] }); toast.success('Label created'); setForm({ name: '', color: '#0E3F96' }); },
   });
   const deleteMutation = useMutation({
     mutationFn: labelService.delete,

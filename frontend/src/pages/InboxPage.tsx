@@ -66,7 +66,7 @@ export default function InboxPage() {
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
             !filters.channelId ? 'text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
           }`}
-          style={!filters.channelId ? { background: '#18a6fc' } : undefined}>
+          style={!filters.channelId ? { background: '#0E3F96' } : undefined}>
           <MessageCircle className="w-3.5 h-3.5" />
           All
         </button>
@@ -75,7 +75,7 @@ export default function InboxPage() {
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
               filters.channelId === ch.id ? 'text-white' : 'text-gray-600 bg-gray-100 hover:bg-gray-200'
             }`}
-            style={filters.channelId === ch.id ? { background: '#18a6fc' } : undefined}>
+            style={filters.channelId === ch.id ? { background: '#0E3F96' } : undefined}>
             <span className={`w-5 h-5 rounded-md flex items-center justify-center ${channelColors[ch.type] || 'bg-gray-200 text-gray-500'}`}>
               {channelIcons[ch.type]}
             </span>
@@ -104,7 +104,7 @@ export default function InboxPage() {
           <div className="hidden lg:flex flex-1 flex-col items-center justify-center bg-white px-6">
             <div className="max-w-lg w-full">
               <h1 className="text-2xl font-semibold text-gray-800 mb-8 text-center">
-                Welcome back to <span style={{ color: '#18a6fc' }}>malesin.AI</span>!
+                Welcome back to <span style={{ color: '#0E3F96' }}>malesin.AI</span>!
               </h1>
 
               <div className="space-y-3">
@@ -122,7 +122,7 @@ export default function InboxPage() {
               </div>
 
               <div className="mt-8 text-center">
-                <a href="#" onClick={e => e.preventDefault()} className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: '#18a6fc' }}>
+                <a href="#" onClick={e => e.preventDefault()} className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: '#0E3F96' }}>
                   Need more help? Watch our YouTube tutorials
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>

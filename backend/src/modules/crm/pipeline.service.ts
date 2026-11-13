@@ -12,7 +12,7 @@ export const AUTO_RULES = ['FIRST_CHAT', 'REPLIED', 'INTEREST', 'PAYMENT_SENT'] 
 /** Template default: alur program/kelas dari lead sampai closing. */
 export const DEFAULT_STAGES: StageInput[] = [
   { name: 'Lead baru', color: '#94a3b8', kind: 'OPEN', autoRule: 'FIRST_CHAT', aiHint: 'Kontak baru yang baru pertama kali menghubungi dan belum dibalas.' },
-  { name: 'Follow up', color: '#18a6fc', kind: 'OPEN', autoRule: 'REPLIED', aiHint: 'Sudah dibalas; pelanggan bertanya hal umum tentang produk/program (materi, fasilitas, info umum).' },
+  { name: 'Follow up', color: '#0E3F96', kind: 'OPEN', autoRule: 'REPLIED', aiHint: 'Sudah dibalas; pelanggan bertanya hal umum tentang produk/program (materi, fasilitas, info umum).' },
   { name: 'Tertarik', color: '#8b5cf6', kind: 'OPEN', autoRule: 'INTEREST', aiHint: 'Pelanggan menunjukkan niat membeli: menanyakan harga, jadwal, cara daftar, cara bayar, cicilan, promo, atau minta nomor rekening.' },
   { name: 'Menunggu pembayaran', color: '#f59e0b', kind: 'OPEN', autoRule: 'PAYMENT_SENT', aiHint: 'Info pembayaran (rekening, link bayar, VA, QRIS) sudah dikirim ke pelanggan dan sedang menunggu pembayaran.' },
   { name: 'Daftar / Closing', color: '#10b981', kind: 'WON', aiHint: 'Pembayaran sudah terkonfirmasi atau pelanggan resmi terdaftar.' },
@@ -170,7 +170,7 @@ export const pipelineService = {
       prisma.pipelineStage.deleteMany({ where: { id: { in: removed.map(s => s.id) } } }),
       ...stages.map((s, i) => {
         const data = {
-          name: s.name.trim(), color: s.color || '#18a6fc', position: i, kind: s.kind,
+          name: s.name.trim(), color: s.color || '#0E3F96', position: i, kind: s.kind,
           autoRule: s.kind === 'OPEN' && s.autoRule && (AUTO_RULES as readonly string[]).includes(s.autoRule) ? s.autoRule : null,
           aiHint: s.aiHint?.trim() || null,
         };

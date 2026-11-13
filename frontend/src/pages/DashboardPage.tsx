@@ -92,7 +92,7 @@ export default function DashboardPage() {
                         <span className="text-gray-600">{ch._count.conversations} ({pct}%)</span>
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: '#18a6fc' }} />
+                        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: '#0E3F96' }} />
                       </div>
                     </div>
                   );

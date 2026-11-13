@@ -221,7 +221,7 @@ export function useAgentEditor() {
   });
 
   const testResponseMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (message: string) =>
       aiAgentService.testResponse({
         agentId,
         // Selalu pakai provider yang sedang dipilih di form. Kalau hanya mengandalkan
@@ -240,7 +240,7 @@ export function useAgentEditor() {
           .filter(item => item.content),
         temperature: form.temperature,
         maxTokens: form.maxTokens,
-        message: testMessage.trim(),
+        message,
         useKnowledge,
         useMedia,
         knowledge: isEdit
@@ -250,12 +250,13 @@ export function useAgentEditor() {
     onSuccess: (res: AiTestResponseResult) => {
       setChat(c => [
         ...c,
-        { role: 'user', content: testMessage.trim() },
-        { role: 'assistant', content: res.reply || '(kosong)', usedKnowledge: res.usedKnowledge, usedMedia: res.usedMedia, attachments: res.attachments },
+        { role: 'assistant', content: res.reply || '(kosong)', usedKnowledge: res.usedKnowledge, usedMedia: res.usedMedia, attachments: res.attachments, animate: true },
       ]);
-      setTestMessage('');
     },
-    onError: (err: any) => toast.error(err?.response?.data?.message || 'Gagal menguji respons AI'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Gagal menguji respons AI';
+      setChat(c => [...c, { role: 'assistant', content: msg, error: true }]);
+    },
   });
 
   const addKnowledgeMutation = useMutation({
@@ -393,7 +394,12 @@ export function useAgentEditor() {
       toast.error('Tulis pesan uji terlebih dahulu');
       return;
     }
-    testResponseMutation.mutate();
+    if (testResponseMutation.isPending) return;
+    const message = testMessage.trim();
+    // Pesan user tampil langsung, lalu indikator "mengetik" sampai AI membalas.
+    setChat(c => [...c, { role: 'user', content: message }]);
+    setTestMessage('');
+    testResponseMutation.mutate(message);
   };
 
   function resetKbForm() {

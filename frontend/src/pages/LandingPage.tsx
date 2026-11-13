@@ -20,7 +20,7 @@ const features = [
     icon: Bot,
     title: 'AI Chat Agent',
     desc: 'AI customer service 24/7 yang memahami konteks percakapan, menangani WhatsApp, Instagram, dan semua channel sekaligus.',
-    color: '#18a6fc',
+    color: '#0E3F96',
   },
   {
     icon: Layers,
@@ -122,7 +122,7 @@ export default function LandingPage() {
                 Masuk
               </button>
               <button className="text-sm font-medium text-white px-5 py-2 rounded-xl transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-                style={{ background: '#18a6fc' }}>
+                style={{ background: '#0E3F96' }}>
                 Coba Demo Sekarang
               </button>
             </div>
@@ -157,7 +157,7 @@ export default function LandingPage() {
             <button onClick={() => navigate('/login')} className="w-full text-sm font-medium text-gray-700 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
               Masuk
             </button>
-            <button className="w-full text-sm font-medium text-white py-3 rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#18a6fc' }}>
+            <button className="w-full text-sm font-medium text-white py-3 rounded-xl transition-all duration-200 hover:shadow-lg active:scale-[0.98]" style={{ background: '#0E3F96' }}>
               Coba Demo Sekarang
             </button>
           </div>
@@ -168,13 +168,13 @@ export default function LandingPage() {
       <section className="pt-28 pb-16 sm:pt-32 sm:pb-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium mb-6"
-            style={{ background: 'rgba(24, 166, 252, 0.1)', color: '#18a6fc' }}>
+            style={{ background: 'rgba(14, 63, 150, 0.1)', color: '#0E3F96' }}>
             <Zap className="w-4 h-4" />
             Platform AI Agent untuk Bisnis Indonesia
           </div>
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight max-w-4xl mx-auto">
             Satu AI untuk Mengelola{' '}
-            <span style={{ color: '#18a6fc' }}>Chat, CRM,</span>
+            <span style={{ color: '#0E3F96' }}>Chat, CRM,</span>
             <br className="hidden sm:block" />
             dan Otomatisasi Bisnis
           </h1>
@@ -184,7 +184,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button className="text-white font-medium px-8 py-3.5 rounded-xl text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-              style={{ background: '#18a6fc' }}>
+              style={{ background: '#0E3F96' }}>
               Mulai Gratis
             </button>
             <button className="flex items-center gap-2 text-gray-700 font-medium px-8 py-3.5 rounded-xl text-sm border border-gray-200 hover:bg-gray-50 transition-all duration-200">
@@ -202,7 +202,7 @@ export default function LandingPage() {
       <section className="py-12 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8 p-6 sm:p-8 rounded-2xl border border-gray-100 shadow-sm"
-            style={{ background: 'linear-gradient(135deg, rgba(24,166,252,0.03) 0%, rgba(139,92,246,0.03) 100%)' }}>
+            style={{ background: 'linear-gradient(135deg, rgba(14, 63, 150,0.03) 0%, rgba(139,92,246,0.03) 100%)' }}>
             {stats.map((s) => (
               <div key={s.label} className="text-center">
                 <div className="text-3xl sm:text-4xl font-bold text-gray-900">{s.value}</div>
@@ -219,7 +219,7 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold mb-4"
-                style={{ background: 'rgba(24, 166, 252, 0.1)', color: '#18a6fc' }}>
+                style={{ background: 'rgba(14, 63, 150, 0.1)', color: '#0E3F96' }}>
                 3K+ <span className="text-gray-400 font-normal">TikTok Integration</span>
               </div>
               <h2 className="text-2xl sm:text-4xl font-bold text-gray-900 leading-tight">
@@ -232,7 +232,7 @@ export default function LandingPage() {
               </p>
               <div className="mt-6 space-y-3">
                 <button className="w-full sm:w-auto flex items-center justify-center gap-2 text-white font-medium px-6 py-3 rounded-xl text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-                  style={{ background: '#18a6fc' }}>
+                  style={{ background: '#0E3F96' }}>
                   Continue with TikTok
                   <ArrowRight className="w-4 h-4" />
                 </button>
@@ -254,7 +254,7 @@ export default function LandingPage() {
                 </div>
                 <div className="p-6 space-y-4" style={{ minHeight: 280 }}>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(24,166,252,0.1)' }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(14, 63, 150,0.1)' }}>
                       <Instagram className="w-5 h-5" style={{ color: '#E4405F' }} />
                     </div>
                     <div className="flex-1">
@@ -264,7 +264,7 @@ export default function LandingPage() {
                     <div className="text-xs font-semibold text-success">Active</div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(24,166,252,0.1)' }}>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'rgba(14, 63, 150,0.1)' }}>
                       <div className="w-5 h-5 flex items-center justify-center font-bold text-sm" style={{ color: '#000' }}>T</div>
                     </div>
                     <div className="flex-1">
@@ -334,8 +334,8 @@ export default function LandingPage() {
                   { icon: CreditCard, label: 'Pembayaran terintegrasi' },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(24,166,252,0.1)' }}>
-                      <item.icon className="w-4 h-4" style={{ color: '#18a6fc' }} />
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(14, 63, 150,0.1)' }}>
+                      <item.icon className="w-4 h-4" style={{ color: '#0E3F96' }} />
                     </div>
                     <span className="text-gray-700">{item.label}</span>
                   </div>
@@ -358,7 +358,7 @@ export default function LandingPage() {
                     Online
                   </div>
                 </div>
-                <div className="px-2.5 py-1 rounded-lg text-xs font-medium" style={{ background: 'rgba(24,166,252,0.1)', color: '#18a6fc' }}>
+                <div className="px-2.5 py-1 rounded-lg text-xs font-medium" style={{ background: 'rgba(14, 63, 150,0.1)', color: '#0E3F96' }}>
                   AI Agent aktif
                 </div>
               </div>
@@ -371,13 +371,13 @@ export default function LandingPage() {
                 </div>
                 <div className="flex justify-start">
                   <div className="max-w-[80%] px-4 py-2.5 rounded-2xl rounded-bl-md text-sm leading-relaxed"
-                    style={{ background: 'rgba(24,166,252,0.08)', color: '#333' }}>
+                    style={{ background: 'rgba(14, 63, 150,0.08)', color: '#333' }}>
                     Ya, size M black tersedia.<br />
                     Harga: Rp185.000<br />
                     Ongkir Bandung: Rp18.000<br />
                     Total: Rp203.000<br /><br />
                     Silakan selesaikan pembayaran di:{' '}
-                    <span style={{ color: '#18a6fc' }}>malesin.ai/pay/10293</span>
+                    <span style={{ color: '#0E3F96' }}>malesin.ai/pay/10293</span>
                   </div>
                 </div>
                 <div className="flex justify-end">
@@ -391,7 +391,7 @@ export default function LandingPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pt-2 text-xs text-gray-400 border-t border-gray-100">
-                  <Bot className="w-3.5 h-3.5" style={{ color: '#18a6fc' }} />
+                  <Bot className="w-3.5 h-3.5" style={{ color: '#0E3F96' }} />
                   AI Agent membalas secara otomatis
                 </div>
               </div>
@@ -414,8 +414,8 @@ export default function LandingPage() {
           <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {builderFeatures.map((f) => (
               <div key={f.title} className="p-5 rounded-2xl bg-white border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1">
-                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ background: 'rgba(24,166,252,0.08)' }}>
-                  <f.icon className="w-5 h-5" style={{ color: '#18a6fc' }} />
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3" style={{ background: 'rgba(14, 63, 150,0.08)' }}>
+                  <f.icon className="w-5 h-5" style={{ color: '#0E3F96' }} />
                 </div>
                 <h3 className="font-semibold text-gray-900 text-sm">{f.title}</h3>
                 <p className="mt-1.5 text-xs text-gray-500 leading-relaxed">{f.desc}</p>
@@ -448,7 +448,7 @@ export default function LandingPage() {
                 <p className="text-gray-600 leading-relaxed">"{t.quote}"</p>
                 <div className="flex items-center gap-3 mt-5 pt-4 border-t border-gray-100">
                   <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white"
-                    style={{ background: '#18a6fc' }}>
+                    style={{ background: '#0E3F96' }}>
                     {t.initials}
                   </div>
                   <div>
@@ -473,7 +473,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
             <button className="flex items-center gap-2 text-white font-medium px-8 py-3.5 rounded-xl text-sm transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5"
-              style={{ background: '#18a6fc' }}>
+              style={{ background: '#0E3F96' }}>
               Coba Demo Sekarang
               <ArrowRight className="w-4 h-4" />
             </button>

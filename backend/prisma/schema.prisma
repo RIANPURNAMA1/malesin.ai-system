@@ -543,7 +543,7 @@ model PipelineStage {
   id         String  @id @default(uuid())
   pipelineId String
   name       String
-  color      String  @default("#18a6fc")
+  color      String  @default("#0e3f96")
   position   Int
   kind       String  @default("OPEN")
   autoRule   String?

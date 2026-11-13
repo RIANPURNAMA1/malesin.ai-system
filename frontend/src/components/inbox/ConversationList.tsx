@@ -39,7 +39,7 @@ export default function ConversationList({ onSelect, selectedId }: Props) {
             className={`flex-1 py-2.5 text-xs font-medium transition-colors border-b-2 ${
               filters.status === tab.value ? 'border-transparent' : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
-            style={filters.status === tab.value ? { color: '#18a6fc', borderBottomColor: '#18a6fc' } : undefined}>{tab.label}</button>
+            style={filters.status === tab.value ? { color: '#0E3F96', borderBottomColor: '#0E3F96' } : undefined}>{tab.label}</button>
         ))}
       </div>
 
@@ -71,7 +71,7 @@ function ConversationItem({ conversation: c, isActive, onClick }: { conversation
     <div onClick={onClick} className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors border-b border-gray-50 ${
       isActive ? 'border-l-2' : 'hover:bg-gray-50'
     }`}
-    style={isActive ? { background: 'rgba(24, 166, 252, 0.05)', borderLeftColor: '#18a6fc' } : undefined}>
+    style={isActive ? { background: 'rgba(14, 63, 150, 0.05)', borderLeftColor: '#0E3F96' } : undefined}>
       <div className="relative flex-shrink-0 mt-0.5">
         <Avatar name={hasName ? c.contact.name : displayPhone} size="md" />
         {c.channel.type === 'WHATSAPP' && (

@@ -95,7 +95,7 @@ export const shortDate = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateSt
 export const shortMonth = (ym: string) => new Date(`${ym}-01T00:00:00`).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
 
 export const COLORS = {
-  primary: '#18a6fc',
+  primary: '#0E3F96',
   violet: '#8b5cf6',
   emerald: '#10b981',
   amber: '#f59e0b',

@@ -47,7 +47,7 @@ const railItemCls = (isActive: boolean) =>
       : "text-gray-500 hover:text-gray-900 group-hover:hover:bg-white/60"
   }`;
 
-/** Kotak ikon: biru saat aktif, polos saat tidak aktif. */
+/** Kotak ikon: biru #0E3F96 hanya saat aktif, polos saat tidak aktif. */
 const iconBoxCls = (isActive: boolean) =>
   `relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors ${
     isActive ? "bg-primary text-white" : ""
@@ -91,7 +91,7 @@ export default function AppLayout() {
     <div className="flex h-screen bg-primary/5">
       {/* ===== Desktop: icon rail, melebar saat hover (overlay, konten tidak bergeser) ===== */}
       <div className="relative z-30 hidden w-14 flex-shrink-0 lg:block">
-        <aside className="group absolute inset-y-0 left-0 flex w-14 flex-col overflow-hidden py-3 transition-[width,background-color,box-shadow] duration-300 ease-in-out hover:w-52 hover:bg-gradient-to-b hover:from-[#eef2fb] hover:via-[#eef2fb] hover:to-[#e4e0f7] hover:shadow-xl">
+        <aside className="group absolute inset-y-0 left-0 flex w-14 flex-col overflow-hidden py-3 transition-[width,background-color,box-shadow] duration-300 ease-in-out hover:w-52 hover:bg-gradient-to-b hover:from-[#e8eef9] hover:via-[#e8eef9] hover:to-[#d6e1f5] hover:shadow-xl">
           <NavLink to="/inbox" aria-label="malesin.AI" className="mb-4 flex h-10 items-center px-3">
             <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center">
               <img src="/logoM.png" alt="malesin.AI" className="h-7 w-7 object-contain" />

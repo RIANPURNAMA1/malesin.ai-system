@@ -171,7 +171,7 @@ export default function ContactsPage() {
                   <td className="whitespace-nowrap px-3 py-3 tabular-nums text-gray-700">{contact.phone || '—'}</td>
                   <td className="px-3 py-3">
                     {contact.sourceChannel ? (
-                      <Badge label={contact.sourceChannel.replace('_', ' ')} color={SOURCE_COLORS[contact.sourceChannel] || '#18a6fc'} />
+                      <Badge label={contact.sourceChannel.replace('_', ' ')} color={SOURCE_COLORS[contact.sourceChannel] || '#0E3F96'} />
                     ) : <span className="text-gray-400">—</span>}
                   </td>
                   <td className="px-3 py-3 text-gray-500">

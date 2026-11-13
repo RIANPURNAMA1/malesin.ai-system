@@ -7,7 +7,7 @@
  *  - Never intercept API, Socket.IO, uploads, or non-GET requests.
  */
 
-const CACHE_VERSION = 'malesin-ai-v1';
+const CACHE_VERSION = 'malesin-ai-v2';
 const PRECACHE_URLS = [
   '/',
   '/index.html',

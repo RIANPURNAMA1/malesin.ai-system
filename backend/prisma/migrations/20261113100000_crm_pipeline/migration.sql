@@ -20,7 +20,7 @@ CREATE TABLE `pipeline_stages` (
     `id` VARCHAR(191) NOT NULL,
     `pipelineId` VARCHAR(191) NOT NULL,
     `name` VARCHAR(191) NOT NULL,
-    `color` VARCHAR(191) NOT NULL DEFAULT '#18a6fc',
+    `color` VARCHAR(191) NOT NULL DEFAULT '#0e3f96',
     `position` INTEGER NOT NULL,
     `kind` VARCHAR(191) NOT NULL DEFAULT 'OPEN',
     `autoRule` VARCHAR(191) NULL,

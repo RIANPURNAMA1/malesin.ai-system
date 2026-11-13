@@ -93,7 +93,7 @@ export default function PipelineSettings({ pipeline, onClose }: { pipeline: Pipe
               {stages.map((s, i) => (
                 <li key={s.key} className="rounded-lg border border-gray-200 p-3">
                   <div className="flex items-center gap-2">
-                    <input type="color" value={s.color ?? '#18a6fc'} onChange={e => patch(s.key, { color: e.target.value })} className="h-8 w-8 flex-shrink-0 cursor-pointer rounded border border-gray-200" />
+                    <input type="color" value={s.color ?? '#0E3F96'} onChange={e => patch(s.key, { color: e.target.value })} className="h-8 w-8 flex-shrink-0 cursor-pointer rounded border border-gray-200" />
                     <input value={s.name ?? ''} onChange={e => patch(s.key, { name: e.target.value })} className={INPUT} />
                     <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${s.kind === 'WON' ? 'bg-emerald-50 text-emerald-600' : s.kind === 'LOST' ? 'bg-red-50 text-red-500' : 'bg-gray-100 text-gray-500'}`}>
                       {s.kind === 'WON' ? 'Menang' : s.kind === 'LOST' ? 'Kalah' : 'Terbuka'}

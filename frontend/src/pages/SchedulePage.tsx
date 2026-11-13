@@ -66,8 +66,8 @@ export default function SchedulePage() {
               onClick={() => setActiveTab(tab)}
               className="flex items-center gap-2 pb-3 text-sm font-medium transition-all border-b-2"
               style={{
-                color: activeTab === tab ? '#18a6fc' : '#6b7280',
-                borderBottomColor: activeTab === tab ? '#18a6fc' : 'transparent',
+                color: activeTab === tab ? '#0E3F96' : '#6b7280',
+                borderBottomColor: activeTab === tab ? '#0E3F96' : 'transparent',
               }}
             >
               {tab === 'Instagram' ? <Instagram className="w-4 h-4" /> : <TikTokIcon size="16" />}
